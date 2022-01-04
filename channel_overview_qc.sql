@@ -1,4 +1,5 @@
 #compare channel overview to attr by browser for visits with a view_listing related landing event for Feeds validation 
+#results: https://docs.google.com/spreadsheets/d/1-YHIXTrrExNBCUnLL5RyfjX9o4CCjVbZ7GCLazjM8k8/edit#gid=358506033
 
 CREATE OR REPLACE TEMPORARY table channel_overview AS
     (
