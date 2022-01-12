@@ -1,0 +1,64 @@
+with af_receipts as
+    (select distinct ab.receipt_timestamp, ab.receipt_id, gms,
+    max(case when utm_source = 'button' then 1 else 0 end) as button,
+    min(start_datetime) as first_visit_date,
+    sum(ab.external_source_decay_all * c.attr_rev) AS attr_rev, 
+    from etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab
+    join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id
+    INNER JOIN `etsy-data-warehouse-prod.buyatt_mart.buyatt_analytics_clv` AS c ON ab.receipt_id = c.receipt_id
+    where second_channel = 'affiliates'
+    group by 1,2,3),
+af_receipts_est as
+    (select *, 
+    case when button = 1 and date_diff(date(receipt_timestamp), date(first_visit_date), day) <= 7 then 1 
+    when button = 1 and date_diff(date(receipt_timestamp), date(first_visit_date), day) > 7 then 0 else 1 end as valid
+    from af_receipts ),    
+af_receipts_paid_last_click as 
+    (select distinct receipt_id
+    from etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab
+    join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id
+    where second_channel = 'affiliates'
+    and paid_last_click_all > 0),
+exchange AS (
+    SELECT
+        source_currency,
+        source_precision,
+        target_currency,
+        target_precision,
+        market_rate,
+        seller_rate,
+        buyer_rate,
+        create_date,
+        date,
+        creation_tsz,
+        lead(create_date, 1) OVER (PARTITION BY source_currency, target_currency ORDER BY create_date) - 1 AS cw_thru_date
+      FROM
+        `etsy-data-warehouse-prod.materialized.exchange_rates`),    
+af_cost AS (
+    SELECT
+       order_ref,
+        commission_amount_amount * coalesce(b_0.market_rate / CAST(10000000 as BIGNUMERIC), CAST(1 as BIGNUMERIC)) AS cost,
+        sale_amount_amount * coalesce(b_0.market_rate / CAST(10000000 as BIGNUMERIC), CAST(1 as BIGNUMERIC)) AS sales,
+      FROM
+        `etsy-data-warehouse-prod.marketing.awin_spend_data` a
+        LEFT OUTER JOIN exchange AS b_0 ON a.commission_amount_currency = b_0.source_currency
+         AND b_0.target_currency = 'USD'
+         AND UNIX_SECONDS(CAST(transaction_date AS TIMESTAMP)) BETWEEN b_0.create_date AND coalesce(b_0.cw_thru_date, UNIX_SECONDS(CAST(transaction_date AS TIMESTAMP)) ))  
+select date(receipt_timestamp) as date,
+#count(distinct af.receipt_id) as receipts,
+#count(distinct af_last.receipt_id) as receipts_last_paid_click_all,
+count(distinct case when af.valid = 1 then af_last.receipt_id end) as est_receipts,
+sum(case when af.valid = 1 and af_last.receipt_id is not null then gms end) as est_receipts_gms,
+#count(distinct case when awin.order_ref is not null then af.receipt_id end) as awin_receipts,
+#count(distinct case when awin.order_ref is not null then af_last.receipt_id end) as awin_receipts_last_paid_click_all,
+count(distinct case when af.valid = 1 and awin.order_ref is not null then af_last.receipt_id end) as est_receipts_with_spend,
+#sum(case when af.valid = 1 and awin.order_ref is not null then cost end) as awin_est_receipts_cost,
+sum(cost) as total_spend,
+sum(attr_rev) as attr_rev
+from af_receipts_est af
+left join af_receipts_paid_last_click af_last using (receipt_id)
+left join af_cost awin on cast(af.receipt_id as string) = order_ref
+where date(receipt_timestamp)  >= '2021-09-01'
+group by 1
+
+#we need to mostly likly randomly choose a random sample of receipts 
