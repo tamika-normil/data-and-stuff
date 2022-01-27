@@ -205,4 +205,69 @@ est_missing  as
 select marketing_region, utm_content, elg_receipts * (pct_awin_baseline - pct_awin) as est_missing_gms
 from est_missing;
 
+#code had issues - multiple rows by receipt if browser id or guid is different
+create or replace table etsy-data-warehouse-dev.tnormil.awin_eligiblity as 
+(with af_receipts as
+    (select distinct ab.receipt_timestamp, ab.receipt_id, gms, browser_id as af_browser_id,
+    max(case when utm_source = 'button' then 1 else 0 end) as button,
+    min(start_datetime) as first_visit_date,
+    max(start_datetime) as last_visit_date,
+    sum(ab.external_source_decay_all * c.attr_rev) AS attr_rev, 
+    from etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab
+    join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id
+    INNER JOIN `etsy-data-warehouse-prod.buyatt_mart.buyatt_analytics_clv` AS c ON ab.receipt_id = c.receipt_id
+    where second_channel = 'affiliates'
+    and  date(ab.receipt_timestamp) >= '2021-11-01'
+    group by 1,2,3,4),
+af_receipts_est as
+    (select af.*, 
+    case when button = 1 and date_diff(date(receipt_timestamp), date(first_visit_date), day) <= 7 then 1 
+    when button = 1 and date_diff(date(receipt_timestamp), date(first_visit_date), day) > 7 then 0 else 1 end as valid, 
+    #v.marketing_region,
+    #v.utm_content
+    from af_receipts af
+    #join etsy-data-warehouse-prod.buyatt_mart.visits v on af.last_visit_date = v.start_datetime and af.af_browser_id = v.browser_id
+    #and v._date >= '2021-11-01'
+    ),
+beacons_in_date_range as (
+    select *
+    FROM `etsy-visit-pipe-prod.canonical.beacon_main_2021_12` 
+    WHERE _DATE >= "2021-12-01" and _HOUR >= 0
+    union all 
+    select *
+    FROM `etsy-visit-pipe-prod.canonical.beacon_main_2021_11` 
+    WHERE _DATE >= "2021-11-01" and _HOUR >= 0 
+    union all 
+    select *
+    FROM `etsy-visit-pipe-prod.canonical.beacon_main_2022_01` 
+    WHERE _DATE >= "2022-01-01" and _HOUR >= 0 ),
+last_paid_utm as (
+    SELECT guid, key, value, browser_id, event_timestamp
+    FROM beacons_in_date_range a
+    JOIN unnest(properties.map)
+    where key = "last_paid_utm" 
+    #or key = "usd_total_price"
+    and value = 'affiliate_window__affiliate')  
+select *,
+case when utm.value is not null and valid = 1 then 'eligible' else 'ineligible' end as status,
+case when awin.order_ref is not null then TRUE else FALSE end as has_commission,
+from af_receipts_est af
+left join last_paid_utm utm on af.af_browser_id = utm.browser_id 
+      and cast(receipt_timestamp as date) = cast(timestamp_MILLIS(event_timestamp) as  date)
+      and timestamp_MILLIS(event_timestamp) <= receipt_timestamp
+left join `etsy-data-warehouse-prod.marketing.awin_spend_data` awin on  cast(af.receipt_id as string) =  awin.order_ref)
+
+/*    
+select date(receipt_timestamp) as date, 
+af.marketing_region, 
+sum(gms) as gms,
+sum(case when awin.order_ref is not null then gms end) as awin_gms
+from af_receipts_est af
+left join last_paid_utm utm on af.af_browser_id = utm.browser_id 
+      and cast(receipt_timestamp as date) = cast(timestamp_MILLIS(event_timestamp) as  date)
+      and timestamp_MILLIS(event_timestamp) <= receipt_timestamp
+left join `etsy-data-warehouse-prod.marketing.awin_spend_data` awin on  cast(af.receipt_id as string) =  awin.order_ref
+where utm.value is not null and valid = 1
+group by 1,2;
+*/
 
