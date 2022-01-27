@@ -61,4 +61,148 @@ left join af_cost awin on cast(af.receipt_id as string) = order_ref
 where date(receipt_timestamp)  >= '2021-09-01'
 group by 1
 
-#we need to mostly likly randomly choose a random sample of receipts 
+#updated as of 01/27/22
+
+/*
+#find samples of receipts with publisher touchpoints 
+select ab.receipt_id, count(distinct utm_content)
+    from etsy-data-warehouse-prod.buyatt_mart.visits v 
+    left outer join etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab on v.visit_id = ab.o_visit_id
+    left join `etsy-data-warehouse-prod.marketing.awin_spend_data` awin on  cast(ab.receipt_id as string) =  awin.order_ref
+    where second_channel = 'affiliates'
+    and awin.order_ref is not null
+ group by 1
+ having  count(distinct utm_content) > 1;   
+
+#figure out which publisher get credit if users are exposed to many 
+select v.*, awin.*
+    from etsy-data-warehouse-prod.buyatt_mart.visits v 
+    left outer join etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab on v.visit_id = ab.o_visit_id
+    left join `etsy-data-warehouse-prod.marketing.awin_spend_data` awin on  cast(ab.receipt_id as string) =  awin.order_ref
+    where second_channel = 'affiliates'
+    and awin.order_ref is not null
+    and ab.receipt_id in (2132237035,11528420498,2181621304)
+order by ab.receipt_id, start_datetime;   
+*/
+
+#set publisher id and program to last one users were exposed to before purchase
+#est missing costs based on last paid click all baselines for receipts that meet our attribution window
+with af_receipts as
+    (select distinct ab.receipt_timestamp, ab.receipt_id, gms,
+    max(case when utm_source = 'button' then 1 else 0 end) as button,
+    min(start_datetime) as first_visit_date,
+    sum(ab.external_source_decay_all * c.attr_rev) AS attr_rev, 
+    from etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab
+    join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id
+    INNER JOIN `etsy-data-warehouse-prod.buyatt_mart.buyatt_analytics_clv` AS c ON ab.receipt_id = c.receipt_id
+    where second_channel = 'affiliates'
+    and _date >= '2021-10-01'
+    group by 1,2,3),
+af_receipts_est as
+    (select *, 
+    case when button = 1 and date_diff(date(receipt_timestamp), date(first_visit_date), day) <= 7 then 1 
+    when button = 1 and date_diff(date(receipt_timestamp), date(first_visit_date), day) > 7 then 0 else 1 end as valid
+    from af_receipts ),    
+af_receipts_paid_last_click as 
+    (select distinct receipt_id
+    from etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab
+    join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id
+    where second_channel = 'affiliates'
+    and paid_last_click_all > 0
+    and _date >= '2021-10-01'),
+receipt_params as
+    (select ab.receipt_id,
+    ab.receipt_timestamp, 
+    ab.gms,
+    case when marketing_region in ('US', 'CA', 'DE', 'FR', 'NL', 'IT', 'ES', 'EU', 'AU') then marketing_region
+    when marketing_region in ('GB') then 'UK'
+    when marketing_region in ('SC') then 'SCAN'
+    else 'ROW' end  marketing_region,
+    utm_content, 
+    visit_id, 
+    row_number() over (partition by receipt_id order by v.start_datetime desc) rnk
+    from etsy-data-warehouse-prod.buyatt_mart.visits v 
+    inner join etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab on v.visit_id = ab.o_visit_id
+    where second_channel = 'affiliates'
+    and _date >= '2021-10-01'),
+baseline as
+    (select marketing_region,
+    utm_content,
+    sum(a.gms) as elg_receipts,
+    sum(case when order_ref is not null then a.gms end) as elg_receipts_awin,
+    coalesce(safe_divide( sum(case when order_ref is not null then a.gms end), sum(a.gms) ),0) as pct_awin
+    from (select * from receipt_params where rnk = 1) a
+    left join af_receipts_est af using (receipt_id)
+    left join af_receipts_paid_last_click af_last using (receipt_id)
+    left join `etsy-data-warehouse-prod.marketing.awin_spend_data` awin on cast(af.receipt_id as string) = order_ref
+    where af.valid = 1 and af_last.receipt_id is not null
+    and date(a.receipt_timestamp) between '2021-11-12' and '2021-12-12'
+    group by 1,2),
+est_missing  as
+    (select date(timestamp_trunc(a.receipt_timestamp, month)) as month,
+    a.marketing_region,
+    a.utm_content,
+    case when b.pct_awin is null then .57 else b.pct_awin end as pct_awin_baseline,
+    sum(a.gms) as elg_receipts,
+    sum(case when order_ref is not null then a.gms end) as elg_receipts_awin,
+    coalesce(safe_divide( sum(case when order_ref is not null then a.gms end), sum(a.gms) ),0) as pct_awin
+    from (select * from receipt_params where rnk = 1) a
+    left join af_receipts_est af using (receipt_id)
+    left join af_receipts_paid_last_click af_last using (receipt_id)
+    left join `etsy-data-warehouse-prod.marketing.awin_spend_data` awin on cast(af.receipt_id as string) = order_ref
+    left join baseline b on a.marketing_region = b.marketing_region and a.utm_content = b.utm_content
+    where af.valid = 1 and af_last.receipt_id is not null
+    and date(a.receipt_timestamp) between '2021-12-12' and '2022-01-10'
+    group by 1,2,3,4)
+select month,marketing_region, utm_content, elg_receipts * (pct_awin_baseline - pct_awin) as est_missing_gms
+from est_missing;
+
+#old code just for reference 
+with 
+receipt_params as
+    (select ab.receipt_id,
+    ab.receipt_timestamp, 
+    ab.gms,
+    marketing_region, 
+    utm_content, 
+    visit_id, 
+    row_number() over (partition by receipt_id order by v.start_datetime desc) rnk
+    from etsy-data-warehouse-prod.buyatt_mart.visits v 
+    inner join etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab on v.visit_id = ab.o_visit_id
+    where second_channel = 'affiliates'
+    and _date >= '2021-11-01'),
+awin_elg as
+    (select receipt_id, gms, max(case when status = 'eligible' then 1 else 0 end) as status, max(case when order_ref is not null then 1 else 0 end) as has_spend
+     from etsy-data-warehouse-dev.tnormil.awin_eligiblity 
+     group by 1,2  ),
+baseline as
+    (select case when marketing_region in ('US', 'CA', 'DE', 'FB', 'NL', 'IT', 'ES', 'ROW', 'EU', 'AU') then marketing_region
+    when marketing_region in ('GB') then 'UK'
+    when marketing_region in ('SC') then 'SCAN'
+    else  marketing_region end  marketing_region,
+    utm_content,
+    sum(a.gms) as elg_receipts,
+    sum(case when has_spend = 1 then a.gms end) as elg_receipts_awin,
+    coalesce(safe_divide(sum(case when has_spend = 1 then a.gms end), sum(a.gms) ),0) as pct_awin
+    from (select * from receipt_params where rnk = 1) a
+    left join awin_elg ae using (receipt_id)
+    where status = 1
+    and date(receipt_timestamp) between '2021-11-12' and '2021-12-12'
+    group by 1,2),
+est_missing  as
+    (select a.marketing_region,
+    a.utm_content,
+    case when b.pct_awin is null then .48 else b.pct_awin end as pct_awin_baseline,
+    sum(a.gms) as elg_receipts,
+    sum(case when has_spend = 1 then a.gms end) as elg_receipts_awin,
+    coalesce(safe_divide(sum(case when has_spend = 1 then a.gms end), sum(a.gms) ),0) as pct_awin,
+    from (select * from receipt_params where rnk = 1) a
+    left join awin_elg ae using (receipt_id)
+    left join baseline b on a.marketing_region = b.marketing_region and a.utm_content = b.utm_content
+    where status = 1
+    and date(receipt_timestamp) between '2021-12-12' and '2022-01-10'
+    group by 1,2,3)
+select marketing_region, utm_content, elg_receipts * (pct_awin_baseline - pct_awin) as est_missing_gms
+from est_missing;
+
+
