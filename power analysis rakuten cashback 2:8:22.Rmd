@@ -11,19 +11,19 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 
 n <- seq(80000000,40000000,-10000000)
 
-pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .004)
+pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .004, alternative="greater")
 
-pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .003)
+pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .003, alternative="greater")
 
-pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .002)
+pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .002, alternative="greater")
 
 #assuming 20% match rate
 
-pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .0008)
+pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .0008, alternative="greater")
 
-pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .0006)
+pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .0006, alternative="greater")
 
-pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .0004)
+pwr.t2n.test(n1 = n, n2= 85000000 - n, d = .0004, alternative="greater")
 
 
 ```
