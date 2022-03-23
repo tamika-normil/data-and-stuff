@@ -1,0 +1,127 @@
+create or replace temp table awin_ciq_mapping as (WITH
+get_awin_country as 
+    (select *, case when source_currency = 'US' then 'United States'
+    when source_currency = 'GBP' then 'United Kingdom'
+    when source_currency = 'EUR' then 'Germany' end as country
+    from `etsy-data-warehouse-prod.static.influencer_awin_publishers`),
+mapping as     
+    (select coalesce(cc1.Date_Joined_Portal, awin.date_joined) as date,
+    cast(awin.utm_content as STRING) as publisher_id,
+    publishername, 
+    coalesce(case when cc2.country = 'UK' then 'United Kingdom' else cc2.country end, case when cc1.country = 'UK' then 'United Kingdom' else cc1.country end,awin.country) AS country,
+    source_currency,
+    'ciq' as engine,
+    payout,
+    ciq_publisher_id,
+    coalesce(cc1.email, cc2.email, cc1.email2) as email,
+    from  get_awin_country awin
+    left join `etsy-data-warehouse-prod.static.influencer_ciq_creator_connect_contact_info` cc1 on awin.ciq_publisher_id = cc1.creatorid
+    left join `etsy-data-warehouse-prod.static.influencer_ciq_creator_contact_info` cc2 on awin.ciq_publisher_id = cc2.creatorid
+    where awin.page_title is null 
+    and awin.ciq_publisher_id is not null)
+select a.*,  iso_country_code as marketing_region
+from mapping a
+left join `etsy-data-warehouse-prod.static.msts_countries` c on a.country = c.country);
+
+create or replace temp table exchange as
+(SELECT source_currency,
+    source_precision,
+    target_currency,
+    target_precision,
+    market_rate,
+    seller_rate,
+    buyer_rate,
+    create_date,
+    date,
+    creation_tsz,
+    lead(create_date, 1) OVER (PARTITION BY source_currency, target_currency ORDER BY create_date) - 1 AS cw_thru_date
+    FROM
+    `etsy-data-warehouse-prod.materialized.exchange_rates`);
+
+create or replace temp table awin_orders AS (
+    SELECT
+    DATE(transaction_date) AS day,
+    substr(CAST(a.publisher_id as STRING), 1, 80) AS publisher_id,
+    CASE
+    WHEN a.customer_country = 'NL' THEN 'NL'
+    WHEN a.customer_country = 'US' THEN 'US'
+    WHEN a.customer_country = 'DE' THEN 'DE'
+    WHEN a.customer_country = 'ES' THEN 'ES'
+    WHEN a.customer_country = 'JP' THEN 'JP'
+    WHEN a.customer_country = 'CA' THEN 'CA'
+    WHEN a.customer_country = 'IN' THEN 'IN'
+    WHEN a.customer_country = 'GB' THEN 'GB'
+    WHEN a.customer_country = 'IT' THEN 'IT'
+    WHEN a.customer_country = 'AU' THEN 'AU'
+    WHEN a.customer_country = 'FR' THEN 'FR'
+    ELSE 'ROW'
+    END AS buyer_region,
+    CASE
+    WHEN a.region = 'AU' THEN 'AU'
+    WHEN a.region = 'CA' THEN 'CA'
+    WHEN a.region = 'DE' THEN 'DE'
+    WHEN a.region = 'ES' THEN 'ES'
+    WHEN a.region = 'EU' THEN 'EU'
+    WHEN a.region = 'FR' THEN 'FR'
+    WHEN a.region = 'UK' THEN 'GB'
+    WHEN a.region = 'IT' THEN 'IT'
+    WHEN a.region = 'NL' THEN 'NL'
+    WHEN a.region = 'SC' THEN 'SC'
+    WHEN a.region = 'US' THEN 'US'
+    ELSE 'ROW'
+    END AS marketing_region,
+    order_ref,
+    sum(a.commission_amount_amount * coalesce(b_0.market_rate / CAST(10000000 as BIGNUMERIC), CAST(1 as BIGNUMERIC))) AS cost,
+    sum(a.sale_amount_amount * coalesce(b_0.market_rate / CAST(10000000 as BIGNUMERIC), CAST(1 as BIGNUMERIC))) AS sales,
+    'awin' AS engine
+    FROM
+    `etsy-data-warehouse-prod.marketing.awin_spend_data` AS a
+    join  awin_ciq_mapping ciq on substr(CAST(a.publisher_id as STRING), 1, 80) = ciq.publisher_id
+    LEFT OUTER JOIN exchange AS b_0 ON a.commission_amount_currency = b_0.source_currency
+        AND b_0.target_currency = 'USD'
+        AND UNIX_SECONDS(CAST(transaction_date AS TIMESTAMP)) BETWEEN b_0.create_date AND coalesce(b_0.cw_thru_date, UNIX_SECONDS(CAST(transaction_date AS TIMESTAMP)) )
+    GROUP BY 1, 2, 3, 4, 5);
+
+create temp table influencer_credit as 
+(with all_channels as 
+(select reporting_channel_group, 
+receipt_id, count(distinct o_visit_id) as visits, sum(external_source_decay_all) as attributed_receipts,
+min(_date) as click_date
+from `etsy-bigquery-adhoc-prod._scripte7abbfe900560a16664f454d90d89e44574ac316.awin_orders` o
+join etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab on o.order_ref = cast(ab.receipt_id as string)
+join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id
+left join `etsy-data-warehouse-prod.buyatt_mart.channel_dimensions` c on v.utm_campaign = c.utm_campaign and 
+v.utm_medium = c.utm_medium	and
+v.top_channel = c.top_channel and 
+v.second_channel = c.second_channel and 
+v.third_channel = c.third_channel
+where v._date >= '2022-03-01'
+group by 1,2 )
+select date_trunc(click_date,week) as week, reporting_channel_group, avg(attributed_receipts) as attributed_receipts, stddev(attributed_receipts) as attributed_receipts_std
+from all_channels 
+group by 1,2);
+
+create temp table affiliates_credit as 
+(with all_channels as 
+(select reporting_channel_group, 
+receipt_id, count(distinct o_visit_id) as visits, sum(external_source_decay_all) as attributed_receipts,
+min(_date) as click_date
+from  etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab 
+join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id
+left join `etsy-bigquery-adhoc-prod._scripte7abbfe900560a16664f454d90d89e44574ac316.awin_orders` o on o.order_ref = cast(ab.receipt_id as string)
+left join `etsy-data-warehouse-prod.buyatt_mart.channel_dimensions` c on v.utm_campaign = c.utm_campaign and 
+v.utm_medium = c.utm_medium	and
+v.top_channel = c.top_channel and 
+v.second_channel = c.second_channel and 
+v.third_channel = c.third_channel
+where v._date >= '2022-03-01'
+and o.order_ref is null
+group by 1,2 )
+select date_trunc(click_date,week) as week, reporting_channel_group, avg(attributed_receipts) as attributed_receipts, stddev(attributed_receipts) as attributed_receipts_std
+from all_channels 
+group by 1,2);
+
+select coalesce(i.week, a.week) as week, coalesce(i.reporting_channel_group, a.reporting_channel_group) as reporting_channel_group,
+a.attributed_receipts, a.attributed_receipts_std, i.attributed_receipts as influencer_attributed_receipts, i.attributed_receipts_std as influencer_attributed_receipts_std 
+from influencer_credit i 
+full outer join affiliates_credit a using (week, reporting_channel_group);
