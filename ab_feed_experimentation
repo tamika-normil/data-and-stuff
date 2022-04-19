@@ -1,0 +1,131 @@
+BEGIN
+
+DECLARE start_date DATE;
+DECLARE end_date DATE;
+DECLARE date_loop DATE;
+
+create temp table static_perf_listing as (with 
+shipping_profiles as
+    (SELECT shipping_profile_id FROM `etsy-data-warehouse-prod.etsy_shard.shipping_profile`
+    where (min_processing_days <= 1 OR max_processing_days <= 2 OR min_processing_days is null)),
+listing_shipping_profiles as
+    (SELECT listing_id
+    from `etsy-data-warehouse-prod.etsy_shard.listing_shipping_profile` 
+    where shipping_profile_id in (select * from shipping_profiles))
+select distinct 
+l.listing_id, 
+l.shop_id,
+case when top_category is null then 'other' else top_category end as top_category , 
+case when second_level_cat_new is null then 'other' else second_level_cat_new end as subcategory, 
+cast(timestamp_seconds(l.original_create_date) as date) as original_create_date,
+open_date as shop_open_date, 
+case when pt.category is not null and price/100 < pt.e then 'e'
+when pt.category is not null and price/100 < pt.d and price >= pt.e then 'd'
+when pt.category is not null and price/100 < pt.c and price >= pt.d then 'c'
+when pt.category is not null and price/100 < pt.b and price >= pt.c then 'b'
+when pt.category is not null and price/100 >= pt.a then 'a'
+when pt.category is null and price/100 < 6.50 then 'e'
+when pt.category is null and price/100 < 13 and price >= 6.50 then 'd'
+when pt.category is null and price/100 < 22 and price >= 13 then 'c' 
+when pt.category is null and price/100 < 40 and price >= 22 then 'b' 
+when pt.category is null and price/100 >= 40 then 'a' end as price_tier,
+price/100 as price,
+case when sp.listing_id is not null then 1 else 0 end as  rts,
+case when l.color is not null then 1 else 0 end as has_color,
+score as nsfw_score,
+is_download
+from `etsy-data-warehouse-prod.listing_mart.listing_vw` l
+left join `etsy-data-warehouse-prod.materialized.listing_categories_taxonomy` c on l.listing_id = c.listing_id
+left join `etsy-data-warehouse-prod.rollups.seller_basics` s on l.shop_id = s.shop_id
+left join `etsy-data-warehouse-prod.static.price_tier` pt on l.top_category = pt.category
+left join  `etsy-sr-etl-prod.nsfw_score.inferenced_all_listings` nsfw on l.listing_id = nsfw.listing_id
+left join listing_shipping_profiles sp on l.listing_id = sp.listing_id 
+);
+
+CREATE or replace TABLE etsy-data-warehouse-dev.tnormil.sample_feeds
+(second_channel STRING, 
+sample_month DATE, 
+sample_group STRING, 
+month DATE, 
+top_category STRING, 
+price_tier STRING, 
+visits INT64, 
+attr_receipt FLOAT64, 
+attr_gms FLOAT64,
+sample_listings  INT64, 
+listings  INT64, 
+gms_listings  INT64, 
+visits_avg FLOAT64, 
+visits_var FLOAT64, 
+cvr_avg FLOAT64, 
+cvr_var FLOAT64, 
+aov_avg FLOAT64, 
+aov_var FLOAT64, 
+takerate_avg FLOAT64, 
+takerate_var FLOAT64);
+
+SET start_date = '2021-09-01';
+SET end_date = '2021-12-01';
+SET date_loop = start_date;
+
+-- we will do this until we have n numbers
+WHILE start_date <= end_date DO
+
+/*
+create or replace temp table base as 
+(select date_trunc(date, month) as month, listing_id, sum(visits) as visits
+from `etsy-data-warehouse-prod.rollups.perf_listings_sum` 
+where date_trunc(date, month) >= date_loop
+and first_page_visits > 0
+and second_channel in ('gpla', 'intl_gpla')
+group by 1, 2);
+*/
+
+create or replace temp table base as 
+(select distinct date_loop, listing_id
+from `etsy-data-warehouse-prod.accounting.active_listings_daily`
+where date_loop between start_date and end_date);
+
+create or replace temp table sample_table as 
+(with sample_table as (
+    select *
+    from base
+    -- we must take the absolute value first
+    -- this will get a 15% sample
+    where mod(abs(farm_fingerprint(cast(listing_id as string))), 100) < 50
+)
+select listing_id, case when s.listing_id is null then 'a' else 'b' end as sample_group
+from base b
+left join sample_table s using (listing_id));
+
+insert into etsy-data-warehouse-dev.tnormil.sample_feeds 
+(select second_channel, date_loop as sample_month, sample_group, date_trunc(date, month) as month, 
+sp.top_category,
+sp.price_tier,
+sum(first_page_visits) as visits, 
+sum(first_page_attr_receipt) as attr_receipt, 
+sum(first_page_attr_gms) as attr_gms,
+count(distinct s.listing_id) as sample_listings,
+count(distinct case when first_page_visits > 0 then ss.listing_id end) as listings,
+count(distinct case when first_page_attr_gms > 0 then ss.listing_id end) as gms_listings,
+avg(first_page_visits) as visits_avg,
+var_samp(first_page_visits) as visits_var,
+avg( safe_divide(first_page_attr_receipt,first_page_visits) ) as cvr_avg,
+var_samp(safe_divide(first_page_attr_receipt,first_page_visits)) as cvr_var,
+avg(safe_divide(first_page_attr_gms,first_page_attr_receipt)) as aov_avg,
+var_samp(safe_divide(first_page_attr_gms,first_page_attr_receipt)) as aov_var,
+avg(safe_divide(first_page_attr_rev, first_page_attr_gms)) as takerate_avg,
+var_samp(safe_divide(first_page_attr_rev, first_page_attr_gms)) as takerate_var,
+from sample_table s 
+join static_perf_listing sp on s.listing_id = sp.listing_id
+left join `etsy-data-warehouse-prod.rollups.perf_listings_sum` ss on s.listing_id = ss.listing_id
+where date_trunc(date, month) >= date_loop
+and date_trunc(date, month) <= date_add(date_loop,interval 3 month)
+and second_channel in ('facebook_disp', 'facebook_disp_intl', 'gpla', 'intl_gpla')
+group by 1,2,3,4,5,6);
+
+SET date_loop = date_add(date_loop,interval 1 month);
+
+END WHILE;
+
+END
