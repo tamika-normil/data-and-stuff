@@ -139,12 +139,13 @@ LEFT OUTER JOIN attributed_perf_listings AS att ON lv.marketing_region = att.mar
     
 #listings with views from gifty campaigns w/o a giftiness score - equates to 30 - 40% of visits    
 with listings_w_score as (select distinct listing_id from `etsy-data-warehouse-prod.knowledge_base.listing_giftiness` where _date >= '2021-01-01')
-SELECT p.listing_id, sum(visits) as visits, max(date) as last_click_date
+SELECT p.listing_id, sum(visits) as visits, min(date) as first_click_date, max(date) as last_click_date
 FROM `etsy-data-warehouse-dev.tnormil.attributed_perf_listings` p
 left join listings_w_score lg on p.listing_id = lg.listing_id
 where tactic = 'ssc'
 and date > '2021-11-11'
 and lg.listing_id is null
-group by 1;
+group by 1
+order by visits desc;
 
 END;
