@@ -177,14 +177,14 @@ FROM  feed_visits     AS v
     group by 1,2,3,4,5,6);
     */
 
-# mta/lt ratio based on total attr receipt per receipt from attribution model
+# mta/lt ratio based on total attr receipt per receipt from attribution model [for receipts with OSA rev only]
 SELECT date, reporting_channel_group,engine, channel_str, 
 sum(attr_receipt_osa) as attr_receipt_osa, 
 sum(lt_attr_receipt_sum) as lt_attr_receipt_sum, 
 FROM `etsy-data-warehouse-dev.tnormil.charge_lt_mta` 
 group by 1,2,3,4;   
 
-# mta/lt based given a credit of 1 for each receipt
+# mta/lt based given a credit of 1 for each receipt [for receipts with OSA rev only]
 with receipts_mta as
   (select date, reporting_channel_group,engine, count(distinct case when attr_receipt_osa > 0 then receipt_id end) as receipts_mta
   FROM `etsy-data-warehouse-dev.tnormil.charge_lt_mta` 
