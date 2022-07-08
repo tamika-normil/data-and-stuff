@@ -177,7 +177,7 @@ using (receipt_id)
 
 end;
 
-SELECT date(receipt_timestamp) as timestamp, click_type, count(*)
+SELECT date(receipt_timestamp) as timestamp, click_type, count(*) as receipts, sum(base_revenue) as base_revenue
 FROM  etsy-data-warehouse-dev.buyatt_mart.daily_oci_data 
 WHERE  date(receipt_timestamp)  >= "2022-06-01" 
 group by 1, 2
