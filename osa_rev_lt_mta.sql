@@ -196,3 +196,66 @@ receipts_lt as
 select a.date as purchase_date, a.reporting_channel_group, a.engine,channel_str, receipts_mta, receipts_lt
 from receipts_mta a
 left join receipts_lt b using (date, reporting_channel_group,engine)
+
+#lets combine it!
+with receipts_lt as
+    (select date as purchase_date, channel_str, count(distinct case when lt_attr_receipt_sum > 0 then receipt_id end) as receipts_lt
+    FROM `etsy-data-warehouse-dev.tnormil.charge_lt_mta` 
+    group by 1,2),
+attr_receipt as
+    (SELECT date as purchase_date, reporting_channel_group,engine, concat(reporting_channel_group,' - ', engine) as channel_str, 
+    sum(coalesce(attr_receipt_osa,0)) as attr_receipt_osa, 
+    sum(coalesce(lt_attr_receipt_sum,0)) as lt_attr_receipt_sum, 
+    sum(coalesce(attr_receipt,0)) as attr_receipt,
+    count(distinct case when attr_receipt_osa > 0 then receipt_id end) as receipts_mta 
+    FROM `etsy-data-warehouse-dev.tnormil.charge_lt_mta` 
+    group by 1,2,3,4)  
+select a.*, b.attr_receipt_osa, b.lt_attr_receipt_sum, b.attr_receipt, b.receipts_mta
+from receipts_lt a
+left join attr_receipt b using (purchase_date, channel_str)
+where b.attr_receipt_osa <> b.attr_receipt;
+
+/*
+#mta channel level receipt lt/mta
+with attr_receipt as
+    (SELECT date as purchase_date, reporting_channel_group,engine, channel_str, 
+    sum(attr_receipt_osa) as attr_receipt_osa, 
+    sum(lt_attr_receipt_sum) as lt_attr_receipt_sum, 
+    sum(attr_receipt) as attr_receipt
+    FROM `etsy-data-warehouse-dev.tnormil.charge_lt_mta` 
+    group by 1,2,3,4),
+receipts_mta as
+    (select date, reporting_channel_group,engine, channel_str, count(distinct case when attr_receipt_osa > 0 then receipt_id end) as receipts_mta
+    FROM `etsy-data-warehouse-dev.tnormil.charge_lt_mta` 
+    group by 1,2,3,4),
+receipts_lt as
+    (select date, channel_str, count(distinct case when lt_attr_receipt_sum > 0 then receipt_id end) as receipts_lt
+    FROM `etsy-data-warehouse-dev.tnormil.charge_lt_mta` 
+    group by 1,2),
+receipts_lt_mta_sum as   
+    (select a.date as purchase_date, a.reporting_channel_group, a.engine,a.channel_str, receipts_mta, receipts_lt
+    from receipts_mta a
+    left join receipts_lt b on a.date = b.date and a.channel_str = b.channel_str)
+select a.*, b.attr_receipt_osa, b.lt_attr_receipt_sum, b.attr_receipt
+from receipts_lt_mta_sum a
+left join attr_receipt b using (purchase_date, reporting_channel_group, engine, channel_str)
+where b.attr_receipt_osa <> b.attr_receipt;
+*/
+
+#percentage of receipts osa chargeable 
+SELECT date(creation_tsz) as creation_tsz, count(distinct a.receipt_id) as receipts, count(distinct a1.receipt_id) as osa_receipts
+FROM `etsy-data-warehouse-prod.transaction_mart.all_receipts`  a
+join `etsy-data-warehouse-prod.buyatt_mart.attr_by_browser` ab using (receipt_id)
+join `etsy-data-warehouse-prod.buyatt_mart.visits_vw` v on ab.o_visit_id = v.visit_id
+left join  `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` a1 using (receipt_id)
+where v.top_channel in ('us_paid','intl_paid')
+and _date >= '2021-01-01'
+group by 1
+order by 1 desc;
+
+#percentage of receipts osa chargeable paid only
+SELECT date(creation_tsz) as creation_tsz, count(distinct a.receipt_id) as receipts, 
+count(distinct a1.receipt_id) as osa_receipts
+FROM `etsy-data-warehouse-prod.transaction_mart.all_receipts`  a
+left join  `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` a1 using (receipt_id)
+group by 1;
