@@ -7,6 +7,7 @@ with visits_dev as
     third_channel,
     count(visit_id) as visits,
     from `etsy-data-warehouse-dev.visit_mart.visits` a
+    where _date >= (current_date-180)
     group by 1,2,3,4),
 visits_prod as
     (select _date, 
@@ -15,6 +16,7 @@ visits_prod as
     third_channel,
     count(visit_id) as visits,
     from `etsy-data-warehouse-prod.visit_mart.visits` a
+    where _date >= (current_date-180)
     group by 1,2,3,4)
 select coalesce(a._date,b._date) as _date, 
     coalesce(a.top_channel,b.top_channel) as top_channel,
