@@ -1,0 +1,51 @@
+BEGIN 
+
+with visits_dev as
+    (select _date, 
+    top_channel,
+    second_channel,
+    third_channel,
+    count(visit_id) as visits,
+    from `etsy-data-warehouse-dev.visit_mart.visits` a
+    group by 1,2,3,4),
+visits_prod as
+    (select _date, 
+    top_channel,
+    second_channel,
+    third_channel,
+    count(visit_id) as visits,
+    from `etsy-data-warehouse-prod.visit_mart.visits` a
+    group by 1,2,3,4)
+select coalesce(a._date,b._date) as _date, 
+    coalesce(a.top_channel,b.top_channel) as top_channel,
+    coalesce(a.second_channel,b.second_channel) as second_channel,
+    coalesce(a.third_channel,b.third_channel) as third_channel,
+safe_divide((a.visits-b.visits),b.visits) as visits,
+from visits_dev a
+full outer join visits_prod b using (_date, top_channel, second_channel, third_channel)
+where safe_divide((a.visits-b.visits),b.visits) >= .001
+order by 2,1 desc;
+
+with old as
+(select *
+from `etsy-data-warehouse-dev.visit_mart.visits` 
+where
+#second_channel in ('facebook_disp', 'facebook_disp_intl')
+_date >= (current_date-31)),
+neww as
+(select *
+from `etsy-data-warehouse-prod.visit_mart.visits` 
+where _date >= (current_date-31))
+select old.utm_medium, old.utm_source, old.top_channel, old.second_channel, 
+neww.utm_medium, neww.utm_source, neww.top_channel, neww.second_channel, 
+from old
+left join neww using (visit_id)
+where old.utm_medium <> neww.utm_medium or
+ old.utm_source <> neww.utm_source or
+ old.top_channel <> neww.top_channel or
+ old.second_channel <> neww.second_channel or
+ old.third_channel <> neww.third_channel
+ limit 100; 
+
+
+END;
