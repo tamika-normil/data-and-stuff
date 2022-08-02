@@ -259,3 +259,28 @@ count(distinct a1.receipt_id) as osa_receipts
 FROM `etsy-data-warehouse-prod.transaction_mart.all_receipts`  a
 left join  `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` a1 using (receipt_id)
 group by 1;
+
+
+#chargeable aov vs aov
+with ads_attributed_receipts as
+    (select *, 
+    case when channel = 1 then 'PLA - Google - Paid'
+    when channel in (2,3) then 'Paid Social - Facebook - Paid'
+    when channel = 4 then 'PLA - Bing - Paid'
+    when channel = 5 then 'Paid Social - Pinterest - Paid'
+    when channel = 6 then 'Affiliates - Affiliates'
+    when channel = 7 then 'Display - Google - Paid' end as channel_str,
+    from `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` )
+SELECT reporting_channel_group, engine, date(receipt_timestamp) as purchase_date, 
+sum(external_source_decay_all) as attr_receipt,
+sum(external_source_decay_all * ab.gms) as attr_gms,
+sum(case when concat(reporting_channel_group, ' - ', engine) = channel_str then external_source_decay_all end) chargeable_attr_receipt,
+sum(case when concat(reporting_channel_group, ' - ', engine) = channel_str then external_source_decay_all * ab.gms end) chargeable_attr_gms
+FROM `etsy-data-warehouse-prod.buyatt_mart.attr_by_browser` ab 
+join `etsy-data-warehouse-prod.buyatt_mart.visits_vw` v on ab.o_visit_id = v.visit_id
+left outer join `etsy-data-warehouse-prod.buyatt_mart.channel_dimensions` cd using (utm_campaign, utm_medium, top_channel, second_channel, third_channel)
+left join ads_attributed_receipts a1 using (receipt_id)
+where v.top_channel in ('us_paid','intl_paid')
+and _date >= '2021-01-01'
+group by 1,2,3
+order by 1 desc;
