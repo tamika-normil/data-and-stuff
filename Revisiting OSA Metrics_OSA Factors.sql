@@ -61,3 +61,32 @@ FROM  feed_visits    AS v
     LEFT OUTER JOIN `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` AS r ON b.receipt_id = r.receipt_id and v.channel_int = r.channel
     LEFT OUTER JOIN `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` AS r2 ON b.receipt_id = r2.receipt_id 
     group by 1,2,3,4,5,6,7);  
+
+#CHANNEL LEVEL FACTORS
+#receipts last touch osa : receipts mta ratio for chargeable orders only
+with receipts_lt as
+    (select date as order_date, date_trunc(date, year) as order_year,  extract(week from date) as order_weeek,  reporting_channel_group, engine, 
+    count(distinct case when attr_receipt_osa > 0 then receipt_id end) as receipts_lt
+    FROM `etsy-data-warehouse-dev.tnormil.charge_lt_mta` 
+    group by 1,2,3),
+attr_receipt as
+    (SELECT date as order_date, reporting_channel_group, engine,
+    sum(coalesce(attr_receipt_osa,0)) as attr_receipt_osa, 
+    sum(coalesce(attr_receipt,0)) as attr_receipt,
+    count(distinct case when attr_receipt_osa > 0 then receipt_id end) as receipts_mta 
+    FROM `etsy-data-warehouse-dev.tnormil.charge_lt_mta` 
+    group by 1,2,3)  
+select a.*, b.attr_receipt_osa, b.attr_receipt, b.receipts_mta
+from receipts_lt a
+left join attr_receipt b using (order_date, reporting_channel_group, engine)
+where b.attr_receipt_osa <> b.attr_receipt;
+
+#total average channel credit across all receipts
+with base as 
+    (select date as order_date, reporting_channel_group,   engine,  receipt_id,  sum(attr_receipt) as attributed_receipts
+    from etsy-data-warehouse-dev.tnormil.charge_lt_mta 
+    group by 1,2,3,4,5,6 )
+select date_trunc(order_date, year) as order_year,  extract(week from purchase_date) as order_weeek, reporting_channel_group, engine,  avg(attr_receipt) as attributed_receipts, stddev(attr_receipt) as attributed_receipts_std
+from base 
+group by 1,2,3;
+
