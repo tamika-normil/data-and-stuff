@@ -1,3 +1,6 @@
+
+
+
 #linear regression 
 CREATE OR REPLACE MODEL `etsy-data-warehouse-dev.tnormil.chargeability_model_linear`
 OPTIONS
