@@ -1,5 +1,5 @@
 with bad_listings as 
-(SELECT listing_id 
+(SELECT distinct listing_id 
 FROM `etsy-data-warehouse-prod.listing_mart.listing_vw` 
 left join `etsy-data-warehouse-prod.etsy_shard.listing_images` using (listing_id)
 left join `etsy-data-warehouse-prod.etsy_shard.image_recognition_safe_search_annotations` using (image_id)
