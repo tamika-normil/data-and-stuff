@@ -1,0 +1,611 @@
+view: perf_listings {
+
+  derived_table: { sql:
+       with past_quarter_clicks_quintile as
+        (select distinct date_trunc(date, week) as week, reporting_channel_group, engine,
+        PERCENTILE_CONT(past_quarter_clicks, 0.25) OVER (partition by date_trunc(date, week), reporting_channel_group, engine) AS pct_25,
+        PERCENTILE_CONT(past_quarter_clicks, 0.5) OVER (partition by date_trunc(date, week), reporting_channel_group, engine) AS median,
+        PERCENTILE_CONT(past_quarter_clicks, 0.75) OVER (partition by date_trunc(date, week), reporting_channel_group, engine) AS pct_75
+        FROM `etsy-data-warehouse-dev.rollups.perf_listings_sample_af`
+        where past_quarter_clicks is not null and past_quarter_clicks not in (0,1))
+    select af.*,
+    case when af.past_quarter_clicks is null or af.past_quarter_clicks = 0 then "0. 0 clicks in past 3 months"
+    when af.past_quarter_clicks = 1 then "1. 1 click in past 3 months"
+    when af.past_quarter_clicks > 1 and af.past_quarter_clicks < pct_25 then "2. low clicks in past 3 months"
+    when af.past_quarter_clicks >= pct_25 and af.past_quarter_clicks < pct_75 then "3. medium clicks in past 3 months"
+    when af.past_quarter_clicks >= pct_75 then "4. high clicks in past 3 months" end as past_quarter_clicks_cat
+    from `etsy-data-warehouse-dev.rollups.perf_listings_sample_af` af
+    left join past_quarter_clicks_quintile p on date_trunc(af.date, week) = p.week
+    and af.reporting_channel_group = p.reporting_channel_group
+    and af.engine = p.engine;;
+  }
+
+  #`etsy-data-warehouse-prod.rollups.perf_listings_agg`
+
+  dimension_group: date {
+    type: time
+    timeframes: [
+      raw,
+      date,
+      week,
+      month,
+      quarter,
+      year
+    ]
+    convert_tz: no
+    datatype: date
+    sql: ${TABLE}.date ;;
+  }
+
+
+  dimension: domestic {
+    type: number
+    sql: ${TABLE}.domestic ;;
+    hidden: yes
+  }
+
+  dimension: listing_id {
+    type: number
+    sql: ${TABLE}.listing_id ;;
+  }
+
+  dimension: listing_link {
+    type: string
+    sql: concat("etsy.com/listing/", cast(${TABLE}.listing_id as string)) ;;
+  }
+
+  dimension: marketing_region {
+    type: string
+    sql: ${TABLE}.marketing_region ;;
+  }
+
+  dimension: overall_giftiness {
+    type: number
+    sql: ${TABLE}.overall_giftiness ;;
+  }
+
+  dimension: giftiness_cl {
+    type: string
+    sql: case when ${TABLE}.overall_giftiness >= .75 and ${rts} = true then 'ready to gift'
+          when ${TABLE}.overall_giftiness >= .75 and ${rts} = false then 'gifty'
+          when ${TABLE}.overall_giftiness < .75 then 'not gifty' end ;;
+  }
+
+  dimension: price {
+    type: number
+    sql: ${TABLE}.price ;;
+  }
+
+  dimension: price_tier {
+    type: string
+    sql: ${TABLE}.price_tier ;;
+  }
+
+  dimension: is_download {
+    type: string
+    sql: ${TABLE}.is_download ;;
+  }
+
+  dimension: rts {
+    type: yesno
+    sql: case when ${TABLE}.rts = 1 then true else false end ;;
+  }
+
+  dimension: second_channel {
+    type: string
+    sql: ${TABLE}.second_channel ;;
+  }
+
+  dimension: utm_content {
+    type: string
+    sql: ${TABLE}.utm_content ;;
+  }
+
+  dimension: reporting_channel_group {
+    type: string
+    sql: ${TABLE}.reporting_channel_group  ;;
+  }
+
+  dimension: tactic_high_level {
+    type: string
+    sql: ${TABLE}.tactic_high_level ;;
+  }
+
+  dimension: tactic_granular {
+    type: string
+    sql: ${TABLE}.tactic_granular ;;
+  }
+
+  dimension: engine {
+    type: string
+    sql: ${TABLE}.engine ;;
+  }
+
+  dimension: reporting_channel_group_engine {
+    type: string
+    sql: concat(${TABLE}.reporting_channel_group, " - ",${TABLE}.engine) ;;
+  }
+
+  dimension: reporting_channel_group_engine_audience {
+    type: string
+    sql: concat(${TABLE}.reporting_channel_group, " - ",${TABLE}.engine, " - ", ${audience}) ;;
+  }
+
+  dimension: audience {
+    type: string
+    sql: ${TABLE}.audience ;;
+  }
+
+  dimension: us_intl {
+    type: string
+    sql: case when ${marketing_region} in ('US') then 'US' else 'INTL' end;;
+    label: "US or INTL"
+  }
+
+  dimension: past_quarter_clicks_bin {
+    type: number
+    sql: ${TABLE}.past_quarter_clicks_bin;;
+    label: "Past Quarter Clicks"
+  }
+
+  dimension: past_quarter_clicks_cat {
+    type: string
+    sql: ${TABLE}.past_quarter_clicks_cat;;
+    label: "Past Quarter Clicks Category"
+  }
+
+  dimension: subcategory {
+    type: string
+    sql: ${TABLE}.subcategory ;;
+  }
+
+
+  dimension: top_category {
+    type: string
+    sql: ${TABLE}.top_category ;;
+  }
+
+  dimension: category_high_level {
+    type: string
+    sql: case when ${TABLE}.top_category in ('home_and_living','craft_supplies_and_tools', 'art_and_collectibles', 'jewelry', 'clothing', 'accessories', 'weddings', 'bags_and_purses')
+      then ${TABLE}.top_category  else 'other' end;;
+  }
+
+  dimension: top_channel {
+    type: string
+    sql: ${TABLE}.top_channel ;;
+  }
+
+  dimension: pla_nonpla {
+    type: string
+    sql:case when lower(${TABLE}.second_channel) like '%pla%' then 'PLA' else 'Non PLA' end;;
+    label: "PLA/Non PLA"
+  }
+
+  dimension: has_color {
+    type: yesno
+    sql: case when ${TABLE}.has_color = 1 then true else false end ;;
+  }
+
+  dimension: feed_type {
+    type: string
+    sql:  ${TABLE}.feed_type;;
+  }
+
+  dimension: feed {
+    type: string
+    sql:  ${TABLE}.feed_fix;;
+  }
+
+  dimension: category {
+    type: string
+    sql:  ${TABLE}.category;;
+  }
+
+  dimension: is_bestseller {
+    type: string
+    sql:  ${TABLE}.is_bestseller;;
+  }
+
+  dimension: seller_tier {
+    type: string
+    sql:  ${TABLE}.seller_tier;;
+  }
+
+  dimension: seller_tier_gpla {
+    type: string
+    sql:  ${TABLE}.seller_tier_gpla;;
+  }
+
+  dimension: seller_country {
+    type: string
+    sql:  case when ${TABLE}.seller_country = ${marketing_region} then "Domestic" when ${TABLE}.seller_country = "US" then "US Seller" else "Non US Seller" end ;;
+  }
+
+  dimension: quality_score {
+    type: number
+    sql:  ${TABLE}.quality_score ;;
+    value_format: "0.00"
+  }
+
+  dimension: pk {
+    type: string
+    sql: concat(${date_date}, ${listing_id}, ${top_channel}, ${second_channel});;
+    primary_key: yes
+    hidden: yes
+  }
+
+#Measures
+
+  measure: visits {
+    type: sum
+    sql: ${TABLE}.visits ;;
+    label: "Visits"
+    value_format: "#,##0"
+  }
+
+  measure: attr_gms {
+    type: sum
+    label: "Attributed GMS"
+    sql: ${TABLE}.attr_gms ;;
+    value_format: "$#,##0.00"
+  }
+
+  measure: attr_gms_listing {
+    type: sum
+    sql: ${TABLE}.attr_gms_listing ;;
+    label: "Attributed GMS Same Shop"
+    value_format: "$#,##0.00"
+  }
+
+  measure: chargeablity {
+    type: sum
+    sql: safe_divide(${TABLE}.gms_chargeable,${TABLE}.attr_gms);;
+    label: "Chargeability"
+    value_format: "$#,##0.00"
+  }
+
+
+  measure: attr_gms_listing_purch_date {
+    type: sum
+    sql: ${TABLE}.attr_gms_listing_purch_date ;;
+    label: "Attributed GMS Purch Date Same Shop"
+    value_format: "$#,##0.00"
+    hidden: yes
+  }
+
+  measure: attr_gms_purch_date {
+    type: sum
+    sql: ${TABLE}.attr_gms_purch_date ;;
+    label: "Attributed GMS Purch Date"
+    value_format: "$#,##0.00"
+    hidden: yes
+  }
+
+  measure: attr_receipt {
+    type: sum
+    sql: ${TABLE}.attr_receipt ;;
+    label: "Attributed Conversions"
+    value_format: "#,##0.00"
+  }
+
+  measure: attr_receipt_listing {
+    type: sum
+    sql: ${TABLE}.attr_receipt_listing ;;
+    label: "Attributed Conversions Same Shop"
+    value_format: "#,##0.00"
+  }
+
+  measure: cvr {
+    type: number
+    sql: safe_divide(${attr_receipt},${visits}) * 100 ;;
+    label: "Conversion Rate"
+    value_format: "0.00\%"
+  }
+
+  measure: cvr_stddev {
+    type: number
+    sql: sttdev_p(safe_divide(${attr_receipt},${visits});;
+    label: "Conversion Rate Stdev"
+    value_format: "0.00\%"
+  }
+
+  measure: AOV {
+    type: number
+    sql: safe_divide(${attr_gms},${attr_receipt});;
+    label: "AOV"
+    value_format: "$0.00"
+  }
+
+  measure: same_shop_cvr {
+    type: number
+    sql: safe_divide(${attr_receipt_listing},${visits}) * 100 ;;
+    label: "Same Shop Conversion Rate"
+    value_format: "0.00\%"
+  }
+
+  measure: same_shop_aov {
+    type: number
+    sql: ${attr_gms_listing}/${attr_receipt_listing};;
+    label: "Same Shop AOV"
+    value_format: "$#,##0.00"
+  }
+
+  measure: pct_cvr_same_shop {
+    type: number
+    sql: safe_divide(${attr_receipt_listing},${attr_receipt}) * 100 ;;
+    label: "Percentage Same Shop Conversions"
+    value_format: "0.00\%"
+  }
+
+  measure: attr_rev {
+    type: sum
+    sql: ${TABLE}.attr_rev ;;
+    label: "Attributed Revenue"
+    value_format: "$#,##0.00"
+  }
+
+  measure: pct_gms_same_shop {
+    type: number
+    sql: safe_divide(${attr_gms_listing},${attr_gms}) * 100;;
+    label: "Percentage Same Shop GMS"
+    value_format: "0.00\%"
+  }
+
+  measure: pct_gms_purch_date_same_shop {
+    type: number
+    sql: safe_divide(${attr_gms_listing_purch_date},${attr_gms_purch_date}) * 100;;
+    label: "Percentage Same Shop GMS Purchase Date"
+    value_format: "0.00\%"
+    hidden: yes
+  }
+
+  measure: past_year_avg_rating {
+    type: average
+    sql: ${TABLE}.past_year_avg_rating ;;
+    label: "Shop Past Year Avg Rating"
+    value_format: "0.00"
+  }
+
+  measure: past_year_rating_var {
+    type: number
+    sql: STDDEV_SAMP(${TABLE}.past_year_avg_rating) ;;
+    label: "Shop Past Year Avg Rating Stddev"
+    value_format: "0.00"
+  }
+
+  measure: past_year_gms {
+    type: average
+    sql: ${TABLE}.past_year_gms ;;
+    label: "Shop Past Year GMS"
+    value_format: "$#,##0.00"
+    hidden: yes
+  }
+
+  measure: past_year_cancellation_rate {
+    type: average
+    sql: safe_divide(${TABLE}.past_year_cancelled_orders,${TABLE}.past_year_orders) * 100;;
+    label: "Shop Past Year Cancellation Rate"
+    value_format: "0.00\%"
+  }
+
+  measure: pct_shipped_accurate {
+    type: average
+    sql: ${TABLE}.pct_shipped_accurate * 100;;
+    label: "Shop Pct Shipped Accurate"
+    value_format: "0.00\%"
+  }
+
+  measure: pct_shipped_on_time {
+    type: average
+    sql: ${TABLE}.pct_shipped_on_time * 100;;
+    label: "Shop Pct Shipped On Time"
+    value_format: "0.00\%"
+  }
+
+  measure: has_shop_review {
+    type: count_distinct
+    sql: case when ${TABLE}.has_shop_review > 0 then ${listing_id} end;;
+    label: "Total W/ Shop Review"
+    value_format: "#,##0.00"
+  }
+
+  measure: pct_w_shop_review {
+    type: number
+    sql: (${has_shop_review}/${count}) * 100;;
+    label: "Pct W/ Shop Review"
+    value_format: "0.00\%"
+  }
+
+  measure: has_past_orders {
+    type: count_distinct
+    sql: case when ${TABLE}.past_year_orders > 0 then ${listing_id} end;;
+    label: "Total W/ Shop Orders"
+    value_format: "#,##0.00"
+  }
+
+  measure: pct_w_orders {
+    type: number
+    sql: (${has_past_orders}/${count}) * 100;;
+    label: "Pct W/ Shop Orders"
+    value_format: "0.00\%"
+  }
+
+  measure: avg_gifitiness{
+    type: average
+    sql: ${overall_giftiness} * 100;;
+    label: "Avg Giftiness"
+    value_format: "0.00\%"
+  }
+
+  measure: avg_days_since_shop_review{
+    type: average
+    sql: ${TABLE}.days_since_shop_review;;
+    label: "Avg Days Since Shop Review"
+    value_format: "0.00"
+  }
+
+  measure: listings{
+    type: count_distinct
+    sql: ${listing_id};;
+    label: "Product Count"
+    value_format: "#,##0"
+  }
+
+  measure: converted_product_count {
+    type: count_distinct
+    label: "Converted Product Count"
+    sql: case when  ${TABLE}.attr_receipt > 0 then ${TABLE}.listing_id end;;
+    value_format: "#,##0"
+  }
+
+  measure: in_session_converted_visits {
+    type: sum
+    sql: ${TABLE}.in_session_converted_visits;;
+    label: "In Session Converted Visits"
+    value_format: "#,##0.00"
+  }
+
+  measure: in_session_conversion_rate{
+    type: number
+    sql: safe_divide(${in_session_converted_visits}, ${visits}) * 100;;
+    label: "In Session Conversion Rate"
+    value_format: "0.00\%"
+  }
+
+  measure: product_conversion_rate {
+    type:  number
+    label: "% of Listings w/ Conversions"
+    sql: (${converted_product_count}/${listings}) * 100;;
+    value_format: "0.00\%"
+  }
+
+  measure: visits_per_listing {
+    type: number
+    label: "Visits per Listing"
+    sql: (${visits}/nullif(${listings},0));;
+    value_format: "0.00"
+  }
+
+  measure: gms_per_listing {
+    type: number
+    label: "GMS per Listing"
+    sql: (${attr_gms}/nullif(${listings},0));;
+    value_format: "$#,##0.00"
+  }
+
+  measure: count {
+    type: count
+    drill_fields: []
+  }
+
+  measure: avg_past_quarter_clicks {
+    type: average
+    sql: ${TABLE}.past_quarter_clicks;;
+    value_format: "0.00"
+   }
+
+  measure: median_past_quarter_clicks {
+  type: median
+  sql: ${TABLE}.past_quarter_clicks;;
+  value_format: "0.00"
+  }
+
+  measure: stddev_past_quarter_clicks {
+    type: number
+    sql: stddev_pop(${TABLE}.past_quarter_clicks);;
+    value_format: "0.00"
+  }
+
+  measure: median_days_between_click {
+    type: median
+    sql:  ${TABLE}.days_between_click;;
+        value_format: "0.00"
+  }
+
+  measure: avg_days_between_click {
+    type: average
+    sql:  ${TABLE}.days_between_click;;
+    value_format: "0.00"
+  }
+
+  measure: stddev_days_between_click {
+    type: number
+    sql: stddev_pop(${TABLE}.days_between_click);;
+    value_format: "0.00"
+  }
+
+  measure:attributed_new_receipts {
+  type: sum
+  sql:  ${TABLE}.attributed_new_receipts;;
+  value_format: "0.00"
+  }
+
+  measure:attributed_lapsed_receipts {
+  type: sum
+  sql:  ${TABLE}.attributed_lapsed_receipts;;
+  value_format: "0.00"
+  }
+
+  measure:pct_attributed_new_receipts {
+    type: number
+    sql:  safe_divide(${attributed_new_receipts},${attr_receipt}) * 100;;
+    value_format: "0.00\%"
+  }
+
+  measure:pct_attributed_lapsed_receipts {
+    type: number
+    sql:  safe_divide(${attributed_lapsed_receipts},${attr_receipt}) * 100;;
+    value_format: "0.00\%"
+  }
+
+  measure:attr_osa_rev {
+    type: sum
+    sql:  ${TABLE}.attr_osa_rev;;
+    value_format: "0.00"
+  }
+
+  measure: osa_rev_takerate {
+    type: number
+    sql:  safe_divide(${attr_osa_rev},${attr_gms}) * 100;;
+    value_format: "0.00\%"
+  }
+
+  measure:takerate {
+    type: number
+    sql:  ${attr_rev}/${attr_gms};;
+    value_format: "0.00%"
+  }
+
+  measure:median_price {
+    type: median
+    sql:  ${price};;
+    value_format: "$0.00"
+  }
+
+  measure:attr_receipt_pla {
+    type: average
+    sql: ${TABLE}.plas_attr_receipt * 100;;
+    value_format: "0.00\%"
+  }
+
+  measure:attr_receipt_pla_stdev {
+    type: number
+    sql: stddev_pop(${TABLE}.plas_attr_receipt) * 100;;
+    value_format: "0.00\%"
+  }
+
+  measure:display_attr_receipt {
+    type: average
+    sql: ${TABLE}.display_attr_receipt * 100;;
+    value_format: "0.00\%"
+  }
+
+  measure:display_attr_receipt_stdev {
+    type: number
+    sql: stddev_pop(${TABLE}.display_attr_receipt) * 100;;
+    value_format: "0.00\%"
+  }
+
+}
+
