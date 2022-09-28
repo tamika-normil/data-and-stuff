@@ -1,3 +1,17 @@
+explore: perf_listings {
+  label: "Performance Marketing Feeds Performance"
+  join: countries {
+    from: countries
+    relationship: many_to_one
+    sql_on: ${perf_listings.marketing_region} = ${countries.iso_country_code} ;; }
+  join: static_affiliates_publisher_by_tactic {
+    from: static_affiliates_publisher_by_tactic
+    relationship: many_to_one
+    sql_on: ${perf_listings.utm_content} = ${static_affiliates_publisher_by_tactic.publisher_id} ;; }
+  persist_with: 24_hours_cache
+}
+
+
 view: perf_listings {
 
   derived_table: { sql:
