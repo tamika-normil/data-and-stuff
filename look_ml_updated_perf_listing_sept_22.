@@ -1,0 +1,606 @@
+view: offsite_ads_chargeability {
+  sql_table_name: `etsy-data-warehouse-prod.rollups.offsite_ads_chargeability` ;;
+
+  # device / platform
+  dimension: device {
+    type: string
+    sql: ${TABLE}.device ;;
+    ## hidden: True
+  }
+
+  # device / platform
+  dimension: device_group {
+    type: string
+    ## hidden: yes
+    description: "for use in Android QOTM. Shows mweb/boe split by ios and android"
+    case: {
+      when: {
+        sql: lower(${TABLE}.device) like '%mweb%android%' ;;
+        label: "Android Mobile Web"
+      }
+      when: {
+        sql: lower(${TABLE}.device) like '%boe%android%' ;;
+        label: "Android BOE"
+      }
+      when: {
+        sql: lower(${TABLE}.device) like '%mweb%ios%' ;;
+        label: "iOS Mobile Web"
+      }
+      when: {
+        sql: lower(${TABLE}.device) like '%boe%ios%' ;;
+        label: "iOS BOE"
+      }
+      else: "Desktop"
+    }
+  }
+
+  dimension: platform_group {
+    type: string
+
+    case: {
+      when: {
+        sql: lower(${TABLE}.device) like '%mweb%tablet%' ;;
+        label: "Mobile Web Tablet"
+      }
+
+      when: {
+        sql: lower(${TABLE}.device) like '%mweb%handset%' ;;
+        label: "Mobile Web Handset"
+      }
+
+      when: {
+        sql: lower(${TABLE}.device)  like '%boe%' and lower(${TABLE}.device) like '%android%' ;;
+        label: "Buy on Etsy - Android"
+      }
+
+      when: {
+        sql: lower(${TABLE}.device) like '%boe%' and lower(${TABLE}.device) like '%ios%' ;;
+        label: "Buy on Etsy - iOS"
+      }
+
+      when: {
+        sql: lower(${TABLE}.device) like 'desktop' ;;
+        label: "Desktop"
+      }
+
+      when: {
+        sql: lower(${TABLE}.device)  like '%soe%' and lower(${TABLE}.device) like '%android%' ;;
+        label: "Sell on Etsy - Android"
+      }
+
+      when: {
+        sql: lower(${TABLE}.device) like '%soe%' and lower(${TABLE}.device) like '%ios%' ;;
+        label: "Sell on Etsy - iOS"
+      }
+
+      else: "Other"
+    }
+  }
+
+  dimension: is_app {
+    type: yesno
+    sql:  case when lower(${TABLE}.device)  like '%boe%' then true else false end;;
+  }
+
+  dimension: desktop_mobile {
+    type: string
+
+    case: {
+      when: {
+        sql: lower(${TABLE}.device) like 'desktop' ;;
+        label: "Desktop"
+      }
+
+      when: {
+        sql: lower(${TABLE}.device) like '%mweb%' ;;
+        label: "Mobile"
+      }
+
+      when: {
+        sql: lower(${TABLE}.device) like '%boe%' ;;
+        label: "BOE"
+      }
+
+      else: "Other"
+    }
+  }
+
+  dimension_group: order_date {
+    type: time
+    datatype: date
+    timeframes: [date, week, month, quarter, year]
+    convert_tz: no
+    sql: ${TABLE}.order_date ;;
+  }
+
+  dimension_group: visit_date {
+    type: time
+    datatype: date
+    timeframes: [date, week, month, quarter, year]
+    convert_tz: no
+    sql: ${TABLE}.visit_date ;;
+  }
+
+  dimension: top_channel {
+    type: string
+    sql: ${TABLE}.top_channel ;;
+  }
+
+  dimension: second_channel {
+    type: string
+    sql: ${TABLE}.second_channel ;;
+  }
+
+  dimension: channel_group {
+    type: string
+    sql: case
+          when second_channel in ('gpla','intl_gpla','bing_plas','intl_bing_plas') then 'PLA'
+          when second_channel in ('affiliates') then 'Affiliates'
+          when second_channel in ('native_display', 'intl_native_display') then 'GDN'
+          else 'Paid social' end ;;
+  }
+
+  dimension: utm_campaign {
+    type: string
+    label: "UTM Campaign"
+    sql: ${TABLE}.utm_campaign ;;
+  }
+
+  dimension: utm_custom2 {
+    type: string
+    label: "UTM Custom2"
+    sql: ${TABLE}.utm_custom2 ;;
+  }
+
+  dimension: third_channel {
+    type: string
+    sql: ${TABLE}.third_channel ;;
+  }
+
+  dimension: utm_medium {
+    type: string
+    label: "UTM Medium"
+    sql: ${TABLE}.utm_medium ;;
+  }
+
+  dimension: category {
+    type: string
+    sql: ${TABLE}.category ;;
+  }
+
+  dimension: canonical_region {
+    type: string
+    sql: ${TABLE}.canonical_region ;;
+  }
+
+  dimension: mapped_region {
+    type: string
+    sql: ${TABLE}.mapped_region ;;
+  }
+
+  dimension: seller_tier {
+    type: string
+    sql: ${TABLE}.seller_tier ;;
+  }
+
+  dimension: paid_social_tactic {
+    type: string
+    sql: case when ${second_channel} in ('instagram_disp', 'facebook_disp', 'facebook_disp_intl','pinterest_disp') then
+            case when ${second_channel} = 'pinterest_disp' then 'Pinterest'
+            when ${utm_campaign} like '%pros_daba%' then 'DABA Pros'
+            when ${utm_campaign}  like '%crm_daba%' then 'DABA CRM'
+            when ${utm_campaign} like '%rtg%' then 'Retargeting'
+            when ${utm_campaign}  like '%crm_cur%' or substr(coalesce(lower(utm_campaign),''),1,120)  like '%pros_cur%' then 'Curated'
+            when ${utm_campaign}  like '%video%' then 'Video'
+            else 'Facebook Other' end
+        else 'N/A' end  ;;
+  }
+
+  dimension: display_tactic {
+    type: string
+    sql: case when  ${second_channel} in ('native_display', 'intl_native_display') then
+            case when lower(${utm_campaign}) like '%earlyholidaysale21%' then 'Static Banners - Holiday Sale'
+                when lower(${utm_campaign}) like '%cyber21%' then 'Static Banners - Cyber Sale'
+                when lower(${utm_campaign}) like '%boxingdaysales21%' then 'Static Banners - Boxing Day Sale'
+                when lower(${utm_campaign}) like '%discovery%' then 'Curated - Discovery'
+                when lower(${utm_campaign}) like '%pros%' or lower(${utm_campaign}) like '%acq%' then 'Dynamic - Prospecting'
+                when lower(${utm_campaign}) not like '%search%' and lower(${utm_campaign}) not like '%dsa%' then 'Dynamic - Remarketing'
+                else "GDN Other" end
+            else 'N/A' end  ;;
+    }
+
+  dimension: affiliates_tactic {
+    type: string
+    sql: case when ${second_channel} in ('affiliates') then ${utm_campaign}
+        else 'N/A' end  ;;
+  }
+
+  # This Year
+
+  measure: attributed_gms {
+    type: number
+    label: "Attributed GMS"
+    group_label: "This Year"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.attr_gms) ;;
+  }
+
+  measure: attributed_receipts {
+    type: number
+    label: "Attributed Receipts"
+    group_label: "This Year"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.attr_receipt) ;;
+  }
+
+  measure: chargeable_gms {
+    type: number
+    label: "Chargeable GMS"
+    group_label: "This Year"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.chargeable_gms) ;;
+  }
+
+  measure: advertising_rev {
+    type: number
+    label: "Advertisng Revenue"
+    group_label: "This Year"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.advertising_rev) ;;
+  }
+
+  measure: chargeable_receipts {
+    type: number
+    label: "Chargeable Receipts"
+    group_label: "This Year"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.chargeable_receipts) ;;
+  }
+
+  measure: chargeability_rate {
+    type: number
+    label: "Chargeability Rate"
+    group_label: "This Year"
+    value_format: "#.0%"
+    sql: ${chargeable_gms}/nullif(${attributed_gms}, 0) ;;
+  }
+
+  measure: aov {
+    type: number
+    label: "AOV"
+    group_label: "This Year"
+    value_format: "$#.00"
+    sql: ${attributed_gms}/nullif(${attributed_receipts}, 0) ;;
+  }
+
+  measure: chargeable_aov {
+    type: number
+    label: "Chargeable AOV"
+    group_label: "This Year"
+    value_format: "$#.00"
+    sql: ${chargeable_gms}/nullif(${chargeable_receipts}, 0) ;;
+  }
+  
+  measure: diff_between_chargeable_aov {
+    type: number
+    label: "Chargeable AOV Pct Lift Over AOV (Relative)"
+    group_label: "This Year"
+    value_format: "#.0%"
+    sql: (${chargeable_aov}-${aov})/${aov};;
+  }
+  
+  measure: aov_yy {
+    type: number
+    label: "AOV YY"
+    group_label: "This Year"
+    value_format: "#.0%"
+    sql: (${aov}/nullif(${aov_ly}, 0) - 1) ;;
+  }
+
+  measure: chargeable_aov_yy {
+    type: number
+    label: "Chargeable AOV YY"
+    group_label: "This Year"
+    value_format: "#.0%"
+    sql: (${chargeable_aov}/nullif(${chargeable_aov_ly}, 0) - 1) ;;
+  }
+
+  measure: aov_d_yy {
+    type: number
+    label: "AOV DYY"
+    group_label: "This Year"
+    value_format: "#.0%"
+    sql: (${aov}/nullif(${aov_dly}, 0) - 1);;
+  }
+
+  measure: chargeable_aov_d_yy {
+    type: number
+    label: "Chargeable AOV DYY"
+    group_label: "This Year"
+    value_format: "#.0%"
+    sql: (${chargeable_aov}/nullif(${chargeable_aov_dly}, 0) - 1);;
+  }
+
+  measure: aov_d_y2y {
+    type: number
+    label: "AOV DY2Y"
+    group_label: "This Year"
+    value_format: "#.0%"
+    sql: (${aov}/nullif(${aov_dlly}, 0) - 1) ;;
+  }
+
+  measure: chargeable_aov_d_y2y {
+    type: number
+    label: "Chargeable AOV DY2Y"
+    group_label: "This Year"
+    value_format: "#.0%"
+    sql: (${chargeable_aov}/nullif(${chargeable_aov_dlly}, 0) - 1);;
+  }
+
+  # Last Year
+
+  measure: attributed_gms_ly {
+    type: number
+    label: "Attributed GMS LY"
+    group_label: "Last Year"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.attr_gms_ly) ;;
+  }
+
+  measure: attributed_receipts_ly {
+    type: number
+    label: "Attributed Receipts LY"
+    group_label: "Last Year"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.attr_receipt_ly) ;;
+  }
+
+  measure: chargeable_gms_ly {
+    type: number
+    label: "Chargeable GMS LY"
+    group_label: "Last Year"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.chargeable_gms_ly) ;;
+  }
+
+  measure: advertising_rev_ly {
+    type: number
+    label: "Advertisng Revenue LY"
+    group_label: "Last Year"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.advertising_rev_ly) ;;
+  }
+
+  measure: chargeable_receipts_ly {
+    type: number
+    label: "Chargeable Receipts LY"
+    group_label: "Last Year"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.chargeable_receipts_ly) ;;
+  }
+
+  measure: chargeability_rate_ly {
+    type: number
+    label: "Chargeability Rate LY"
+    group_label: "Last Year"
+    value_format: "#.0%"
+    sql: ${chargeable_gms_ly}/nullif(${attributed_gms_ly}, 0) ;;
+  }
+
+  measure: aov_ly {
+    type: number
+    label: "AOV LY"
+    group_label: "Last Year"
+    value_format: "$#.0%"
+    sql: ${attributed_gms_ly}/nullif(${attributed_receipts_ly}, 0) ;;
+  }
+
+  measure: chargeable_aov_ly {
+    type: number
+    label: "Chargeable AOV LY"
+    group_label: "Last Year"
+    value_format: "$#.0%"
+    sql: ${chargeable_gms_ly}/nullif(${chargeable_receipts_ly}, 0) ;;
+  }
+
+  # Last Week
+
+  measure: attributed_gms_lw {
+    type: number
+    label: "Attributed GMS LW"
+    group_label: "Last Week"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.attr_gms_lw) ;;
+  }
+
+  measure: attributed_receipts_lw {
+    type: number
+    label: "Attributed Receipts LW"
+    group_label: "Last Week"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.attr_receipt_lw) ;;
+    }
+
+  measure: chargeable_gms_lw {
+    type: number
+    label: "Chargeable GMS LW"
+    group_label: "Last Week"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.chargeable_gms_lw) ;;
+  }
+
+  measure: advertising_rev_lw {
+    type: number
+    label: "Advertisng Revenue LW"
+    group_label: "Last Week"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.advertising_rev_lw) ;;
+  }
+
+  measure: chargeable_receipts_lw {
+    type: number
+    label: "Chargeable Receipts LW"
+    group_label: "Last Week"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.chargeable_receipts_lw) ;;
+  }
+
+  measure: chargeability_rate_lw {
+    type: number
+    label: "Chargeability Rate LW"
+    group_label: "Last Week"
+    value_format: "#.0%"
+    sql: ${chargeable_gms_lw}/nullif(${attributed_gms_lw}, 0) ;;
+  }
+
+  measure: aov_lw {
+    type: number
+    label: "AOV LW"
+    group_label: "Last Week"
+    value_format: "$#.00"
+    sql: ${attributed_gms_lw}/nullif(${attributed_receipts_lw}, 0) ;;
+  }
+
+  measure: chargeable_aov_lw {
+    type: number
+    label: "Chargeable AOV LW"
+    group_label: "Last Week"
+    value_format: "$#.0%"
+    sql: ${chargeable_gms_lw}/nullif(${chargeable_receipts_lw}, 0) ;;
+  }
+
+  # Same Day Last Year
+
+  measure: attributed_gms_dly {
+    type: number
+    label: "Attributed GMS DLY"
+    group_label: "Same Day Last Year"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.attr_gms_dly) ;;
+  }
+
+  measure: attributed_receipts_dly {
+    type: number
+    label: "Attributed Receipts DLY"
+    group_label: "Same Day Last Year"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.attr_receipt_dly) ;;
+
+    }
+
+  measure: chargeable_gms_dly {
+    type: number
+    label: "Chargeable GMS DLY"
+    group_label: "Same Day Last Year"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.chargeable_gms_dly) ;;
+  }
+
+  measure: advertising_rev_dly {
+    type: number
+    label: "Advertisng Revenue DLY"
+    group_label: "Same Day Last Year"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.advertising_rev_dly) ;;
+  }
+
+  measure: chargeable_receipts_dly {
+    type: number
+    label: "Chargeable Receipts DLY"
+    group_label: "Same Day Last Year"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.chargeable_receipts_dly) ;;
+  }
+
+  measure: chargeability_rate_dly {
+    type: number
+    label: "Chargeability Rate DLY"
+    group_label: "Same Day Last Year"
+    value_format: "#.0%"
+    sql: ${chargeable_gms_dly}/nullif(${attributed_gms_dly}, 0) ;;
+  }
+
+  measure: aov_dly {
+    type: number
+    label: "AOV DLY"
+    group_label: "Same Day Last Year"
+    value_format: "$#.00"
+    sql: ${attributed_gms_dly}/nullif(${attributed_receipts_dly}, 0) ;;
+  }
+
+  measure: chargeable_aov_dly {
+    type: number
+    label: "Chargeable AOV DLY"
+    group_label: "Same Day Last Year"
+    value_format: "$#.00"
+    sql: ${chargeable_gms_dly}/nullif(${chargeable_receipts_dly}, 0) ;;
+  }
+
+  # Same Day 2 Years Ago
+
+  measure: attributed_gms_dlly {
+    type: number
+    label: "Attributed GMS DLLY"
+    group_label: "Same Day 2 Years Ago"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.attr_gms_dlly) ;;
+  }
+
+  measure: attributed_receipts_dlly {
+    type: number
+    label: "Attributed Receipts DLLY"
+    group_label: "Same Day 2 Years Ago"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.attr_receipt_dlly) ;;
+
+  }
+
+  measure: chargeable_gms_dlly {
+    type: number
+    label: "Chargeable GMS DLLY"
+    group_label: "Same Day 2 Years Ago"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.chargeable_gms_dlly) ;;
+  }
+
+  measure: advertising_rev_dlly {
+    type: number
+    label: "Advertisng Revenue DLY"
+    group_label: "Same Day 2 Years Ago"
+    value_format: "$#,##0"
+    sql: sum(${TABLE}.advertising_rev_dlly) ;;
+  }
+
+  measure: chargeable_receipts_dlly {
+    type: number
+    label: "Chargeable Receipts DLLY"
+    group_label: "Same Day 2 Years Ago"
+    value_format: "#,##0"
+    sql: sum(${TABLE}.chargeable_receipts_dlly) ;;
+  }
+
+  measure: chargeability_rate_dlly {
+    type: number
+    label: "Chargeability Rate DLLY"
+    group_label: "Same Day 2 Years Ago"
+    value_format: "#.0%"
+    sql: ${chargeable_gms_dlly}/nullif(${attributed_gms_dlly}, 0) ;;
+  }
+
+  measure: aov_dlly {
+    type: number
+    label: "AOV DLLY"
+    group_label: "Same Day 2 Years Ago"
+    value_format: "$#.00"
+    sql: ${attributed_gms_dlly}/nullif(${attributed_receipts_dlly}, 0) ;;
+  }
+
+  measure: chargeable_aov_dlly {
+    type: number
+    label: "Chargeable AOV DLLY"
+    group_label: "Same Day 2 Years Ago"
+    value_format: "$#.00"
+    sql: ${chargeable_gms_dlly}/nullif(${chargeable_receipts_dlly}, 0) ;;
+  }
+
+}
