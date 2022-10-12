@@ -47,7 +47,7 @@ select sum(chargeable_gms)/sum(attr_gms) as chargeability, 'bau_chargeability_wo
 from `etsy-data-warehouse-prod.rollups.offsite_ads_chargeability`
 where visit_date >= "2022-01-01";
 
-code for referenced offsite ads table is below
+-- code for referenced offsite ads table is below
 
 -- owner: mthorn@etsy.com, vbhuta@etsy.com, tnormil@etsy.com, annabradleywebb@etsy.com 
 -- owner_team: marketinganalytics@etsy.com
