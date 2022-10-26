@@ -1,7 +1,7 @@
 -- Adele Kikuchi 
 -- Neustar MMM Data Collection
 -- This code snippet pulls affiliai=te-related activity on a daily level for our marketing databases
--- latest data validation
+-- latest data validation here: https://docs.google.com/spreadsheets/d/1S2imAqaKHJjQjHM8Ds6LZZhhAV4zE8HE30TW5H4aFoc/edit#gid=531599458
 
 ---------------------------------
 -- AFFILIATE MARKETING DATA --
