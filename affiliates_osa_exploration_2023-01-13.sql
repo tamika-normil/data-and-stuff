@@ -273,6 +273,7 @@ CREATE OR REPLACE TEMPORARY TABLE listing_views
     WHERE lv.view_listing_no = 1
     and v._date >= '2021-01-01'
     and v.run_date >= unix_seconds('2021-01-01')); 
+
 with perf_listings as
 (SELECT date_trunc(date,month) month, second_channel, sum(first_page_attr_gms) as attr_gms, sum(first_page_attr_gms_listing) as attr_gms_listing
 FROM `etsy-data-warehouse-prod.rollups.perf_listings_sum` 
