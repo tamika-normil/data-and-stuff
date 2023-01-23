@@ -236,7 +236,7 @@ CREATE TEMPORARY TABLE all_markt as
         affiliate    )
    select * from all_markt);   
 
-CREATE TEMPORARY TABLE cost as   
+CREATE TEMPORARY TABLE costs as   
     (SELECT date(day) as day,
     engine,
     sum(cost) cost
@@ -312,7 +312,7 @@ union all
 SELECT date_trunc(day, year) as year, 
 sum(cost),
 'prod' as env
-FROM cost
+FROM costs
 group by 1;
 
 SELECT date_trunc(day, year) as year, 
@@ -386,7 +386,7 @@ a.cost
 #safe_divide((a.gms_ly-c.gms_ly),c.gms_ly) as gms_ly,
 #safe_divide((a.gms_dly-c.gms_dly),c.gms_dly) as gms_dly,
 #safe_divide((a.gms_dlly-c.gms_dlly),c.gms_dlly) as gms_dlly ,
-from cost c 
+from costs c 
 left join daily_tracker a using (day, engine)
 where c.day >= '2019-01-01'
 order by 2,1 desc;
