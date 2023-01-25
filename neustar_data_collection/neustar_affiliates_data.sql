@@ -93,7 +93,7 @@ all_grouped_up as (
      when date >= '2022-04-01' then a.cost * 1.0352 end) AS cost_with_override
     ,0 as clicks
     ,0 as visits
-    from `etsy-data-warehouse-dev.tnormil.awin_backfill_for_tv`
+    from `etsy-data-warehouse-dev.skikuchi.awin_backfill_for_tv` a
     where country in ('US','DE','CA','FR','GB')
     group by 1,2,3,4  
 )
