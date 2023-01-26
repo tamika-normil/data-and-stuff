@@ -232,6 +232,26 @@ left join ss_receipts using (month, top_channel);
 
 END;
 
+#share of affiliates eligible for osa 
+
+with perf_listings_affiliates as
+(SELECT date_trunc(date, month) as month,  top_channel, sum(visits) as visits, sum(seller_opt_in_visits) as seller_opt_in_visits, sum(attr_gms) as attr_gms, sum(attr_gms_listing) as attr_gms_listing
+FROM etsy-bigquery-adhoc-prod._script46b019287c7aade0a65aa453348c8b63a1c77f33.perf_listings_affiliates
+group by 1,2),
+overall as 
+(select date_trunc(date, month) as month, top_channel, case when landing_event in ('view_listing') then 1 else 0 end as osa_eligible, sum(attributed_gms_adjusted) as attributed_gms_adjusted, sum(visits) as visits 
+from etsy-data-warehouse-prod.buyatt_rollups.channel_overview
+where second_channel = 'affiliates'
+and date >= '2021-01-01'
+group by 1, 2, 3),
+new_overall as 
+(SELECT * FROM
+overall
+  PIVOT(sum(attributed_gms_adjusted) as attributed_gms_adjusted, sum(visits) as visits FOR osa_eligible IN (1,0)))
+select *
+from new_overall
+left join perf_listings_affiliates using (month, top_channel)
+
 #Paid channels 
 
 CREATE OR REPLACE TEMPORARY TABLE listing_views_rank as 
