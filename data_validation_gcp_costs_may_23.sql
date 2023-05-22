@@ -21,6 +21,47 @@ from p_channel_overview p
 left join d_channel_overview d using (date)
 order by 1 desc
 
+#daily tracker
+
+with daily_tracker as 
+    (select *,
+    coalesce(visits,0) * 0.0063 * coalesce(safe_divide(attributed_attr_rev_mult_purch_date,attributed_rev_purch_date),1) as gcp_costs_mult_p,
+    coalesce(visits,0) * 0.0063 * coalesce(safe_divide(attributed_attr_rev_mult_fin_purch_date,attributed_rev_purch_date),1) as gcp_costs_mult_fin_p
+    from `etsy-data-warehouse-prod.buyatt_rollups.performance_marketing_daily_tracker` a
+    ),
+gcp_costs_prod as
+    (select day, engine, sum(attr_rev_est - gcp_costs_mult_p) as attr_rev_est, 
+    sum(attributed_rev - gcp_costs_mult_p) as attributed_rev,
+    sum(attributed_rev_purch_date - gcp_costs_mult_p) as attributed_rev_purch_date, 
+    sum(attributed_attr_rev_mult - gcp_costs_mult_p) as attributed_attr_rev_mult,
+    sum(attributed_attr_rev_adjusted_mult - gcp_costs_mult_p) as attributed_attr_rev_adjusted_mult, 
+    sum(attributed_attr_rev_mult_fin - gcp_costs_mult_fin_p) as attributed_attr_rev_mult_fin,
+    sum(attributed_attr_rev_adjusted_mult_fin - gcp_costs_mult_fin_p) as attributed_attr_rev_adjusted_mult_fin,
+    sum(attributed_attr_rev_mult_fin_purch_date - gcp_costs_mult_fin_p) as attributed_attr_rev_mult_fin_purch_date,
+    sum(attributed_attr_rev_mult_purch_date - gcp_costs_mult_p) as attributed_attr_rev_mult_purch_date,
+    sum(gcp_costs_mult_p) as gcp_costs_mult_p,
+    sum(gcp_costs_mult_fin_p) as gcp_costs_mult_fin_p
+    from daily_tracker a
+    group by 1,2),
+gcp_costs_dev as
+   (select day, engine, sum(attr_rev_est) as attr_rev_est, 
+    sum(attributed_rev) as attributed_rev,
+    sum(attributed_rev_purch_date) as attributed_rev_purch_date, 
+    sum(attributed_attr_rev_mult) as attributed_attr_rev_mult,
+    sum(attributed_attr_rev_adjusted_mult) as attributed_attr_rev_adjusted_mult, 
+    sum(attributed_attr_rev_mult_fin) as attributed_attr_rev_mult_fin,
+    sum(attributed_attr_rev_adjusted_mult_fin) as attributed_attr_rev_adjusted_mult_fin,
+    sum(attributed_attr_rev_mult_fin_purch_date) as attributed_attr_rev_mult_fin_purch_date,
+    sum(attributed_attr_rev_mult_purch_date) as attributed_attr_rev_mult_purch_date,
+    sum(gcp_costs_mult) as gcp_costs_mult,
+    sum(gcp_costs_mult_fin) as gcp_costs_mult_fin,
+    from `etsy-data-warehouse-dev.buyatt_rollups.performance_marketing_daily_tracker` a
+    group by 1,2)
+select *
+from gcp_costs_prod
+left join gcp_costs_dev using (day, engine)
+order by 1 desc
+
 #perf marketing s3
 
 with gcp_costs_prod as
