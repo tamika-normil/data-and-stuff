@@ -1,0 +1,93 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+#library(RJDBC)
+library(dplyr)
+library(data.table)
+library(GeoexperimentsResearch)
+library(ggplot2)
+library(zoo)
+library(scales)
+library(googleCloudStorageR)
+library(bigrquery)
+```
+
+
+```{r}
+dat <- read.csv(file = 'design_data_tbr.csv')
+
+colnames(dat)[8]<-c('geo.group')
+dat[is.na(dat)] <- 0
+dat$date <- as.Date(dat$date,format = "%Y-%m-%d")
+
+dat=dat[dat$date>="2023-01-01",]
+
+head(dat)
+```
+
+
+```{r}
+obj.gts2 <- GeoTimeseries(dat, metrics=c("cost", "response"))
+
+# print("The Data")
+# plot(obj.gts2,legend = FALSE)
+
+obj.per2 <- ExperimentPeriods(c("2023-01-01", "2023-03-31", "2023-04-01", "2023-05-19")) 
+
+obj.ga2 <- GeoAssignment(unique(dat[,c(2,8)]))
+obj2 <- GeoExperimentData(obj.gts2,
+                         periods=obj.per2,
+                         geo.assignment=obj.ga2)
+obj.tbr.roas2 <- DoTBRROASAnalysis(obj2, response='response', cost='cost',
+                                  model='tbr1',
+                                  pretest.period=c(0),
+                                  intervention.period=1,
+                                  cooldown.period=2,
+                                  control.group=1,
+                                  treatment.group=2)
+# obj.tbr.roas2
+summary(obj.tbr.roas2, level=0.90, interval.type="one-sided")
+
+
+obj.tbr <- DoTBRAnalysis(obj2, response='response', cost='cost',
+                                  model='tbr1',
+                                   pretest.period=c(0),
+                                  intervention.period=1,
+                                  cooldown.period=2,
+                                  control.group=1,
+                                  treatment.group=2)
+
+#result2 <- DoGBRROASAnalysis(obj2_loop, response='response', cost='cost',
+#                             pretest.period=c(0),
+#                            intervention.period= 1,
+#                            cooldown.period=2,
+#                            control.group=1,
+#                            treatment.group=2)
+
+
+# obj.tbr.roas2
+summary(obj.tbr, level=0.90, interval.type="one-sided")
+
+# dev.new(width=10, height=10, unit="cm")
+
+
+#summary(result2, level=0.90, interval.type="one-sided")
+
+
+plot(obj.tbr)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
