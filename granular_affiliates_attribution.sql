@@ -18,7 +18,7 @@ CREATE OR REPLACE TEMPORARY TABLE awin_monthly
       order_ref AS receipt_id
     FROM
       `etsy-data-warehouse-prod.marketing.awin_spend_data`
-    WHERE DATE(datetime_trunc(Datetime(click_date), MONTH)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 40 MONTH)
+    WHERE DATE(datetime_trunc(Datetime(click_date), MONTH)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 48 MONTH)
 ;
 
 CREATE OR REPLACE TEMPORARY TABLE temp_attr_by_browser
@@ -781,7 +781,7 @@ CREATE OR REPLACE TEMPORARY TABLE attr_by_browser_slice_pastdat_sans_affiliates_
         receipt_id
       FROM
         `etsy-data-warehouse-prod.buyatt_mart.attr_by_browser`
-      WHERE DATE(CAST(date_trunc(DATE(timestamp_seconds(o_visit_run_date)), MONTH) as TIMESTAMP)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 40 MONTH)
+      WHERE DATE(CAST(date_trunc(DATE(timestamp_seconds(o_visit_run_date)), MONTH) as TIMESTAMP)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 48 MONTH)
     EXCEPT DISTINCT
     SELECT
         attr_by_browser_slice_pastdat_sans_affiliates.receipt_id
@@ -812,7 +812,7 @@ CREATE OR REPLACE TEMPORARY TABLE attr_by_browser_slice_pastdat_sans_affiliates_
       FROM
         other_receipts AS a
         INNER JOIN `etsy-data-warehouse-prod.buyatt_mart.attr_by_browser` AS att ON a.receipt_id = att.receipt_id
-      WHERE DATE(CAST(date_trunc(DATE(timestamp_seconds(att.o_visit_run_date)), MONTH) as TIMESTAMP)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 40 MONTH)
+      WHERE DATE(CAST(date_trunc(DATE(timestamp_seconds(att.o_visit_run_date)), MONTH) as TIMESTAMP)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 48 MONTH)
   ), attr_other_receipts_visits AS (
     SELECT
         a_0.buy_date,
@@ -845,7 +845,7 @@ CREATE OR REPLACE TEMPORARY TABLE attr_by_browser_slice_pastdat_sans_affiliates_
       FROM
         attr_other_receipts AS a_0
         INNER JOIN `etsy-data-warehouse-prod.buyatt_mart.visits` AS v ON a_0.o_visit_id = v.visit_id
-      WHERE datetime_trunc(CAST(timestamp_seconds(v.run_date) as DATETIME), MONTH) >= CAST(date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 40 MONTH) as DATETIME)
+      WHERE datetime_trunc(CAST(timestamp_seconds(v.run_date) as DATETIME), MONTH) >= CAST(date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 48 MONTH) as DATETIME)
   ), total_attr AS (
     SELECT
         attr_other_receipts_visits.buy_date,
@@ -940,7 +940,7 @@ CREATE OR REPLACE TEMPORARY TABLE attr_by_browser_slice_pastdat_rev
         receipt_id
       FROM
         `etsy-data-warehouse-prod.buyatt_mart.attr_by_browser`
-      WHERE DATE(CAST(date_trunc(DATE(timestamp_seconds(o_visit_run_date)), MONTH) as TIMESTAMP)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 40 MONTH)
+      WHERE DATE(CAST(date_trunc(DATE(timestamp_seconds(o_visit_run_date)), MONTH) as TIMESTAMP)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 48 MONTH)
     EXCEPT DISTINCT
     SELECT
         attr_by_browser_slice_pastdat.receipt_id
@@ -971,7 +971,7 @@ CREATE OR REPLACE TEMPORARY TABLE attr_by_browser_slice_pastdat_rev
       FROM
         other_receipts AS a
         INNER JOIN `etsy-data-warehouse-prod.buyatt_mart.attr_by_browser` AS att ON a.receipt_id = att.receipt_id
-      WHERE DATE(CAST(date_trunc(DATE(timestamp_seconds(att.o_visit_run_date)), MONTH) as TIMESTAMP)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 40 MONTH)
+      WHERE DATE(CAST(date_trunc(DATE(timestamp_seconds(att.o_visit_run_date)), MONTH) as TIMESTAMP)) >= date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 48 MONTH)
   ), attr_other_receipts_visits AS (
     SELECT
         a_0.buy_date,
@@ -1004,7 +1004,7 @@ CREATE OR REPLACE TEMPORARY TABLE attr_by_browser_slice_pastdat_rev
       FROM
         attr_other_receipts AS a_0
         INNER JOIN `etsy-data-warehouse-prod.buyatt_mart.visits` AS v ON a_0.o_visit_id = v.visit_id
-      WHERE datetime_trunc(CAST(timestamp_seconds(v.run_date) as DATETIME), MONTH) >= CAST(date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 40 MONTH) as DATETIME)
+      WHERE datetime_trunc(CAST(timestamp_seconds(v.run_date) as DATETIME), MONTH) >= CAST(date_sub(DATE(CAST(date_trunc(current_date(), MONTH) as TIMESTAMP)), interval 48 MONTH) as DATETIME)
   ), total_attr AS (
     SELECT
         attr_other_receipts_visits.buy_date,
@@ -1095,8 +1095,8 @@ CREATE OR REPLACE TEMPORARY TABLE attr_by_browser_slice_pastdat_rev
 
 create temp table affiliate_tactics as 
   (select distinct a.utm_content as publisher_id,
-    case when t.tactic in ("Cashback", "Loyalty", "Loyalty Charity", "Coupon") then "Cashback/Loyalty/Coupon" 
-    when b.publisher_id is not null or c.publisher_id is not null or t.tactic = 'Social Creator Co' then "Social" 
+    case when (b.publisher_id is not null or c.publisher_id is not null or t.tactic = 'Social Creator Co') and a.utm_content = '946733' then "Social - CreatorIQ" 
+    when (b.publisher_id is not null or c.publisher_id is not null or t.tactic = 'Social Creator Co') and a.utm_content <> '946733' then "Social" 
     when t.tactic is null and b.publisher_id is null and c.publisher_id is null then 'NA'
     else t.tactic end as tactic
     from `etsy-data-warehouse-prod.buyatt_rollups.channel_overview` a
@@ -1106,8 +1106,8 @@ create temp table affiliate_tactics as
     where channel_group = 'Affiliates'
     union distinct
     select distinct  cast(a.publisher_id as string)  as publisher_id,
-    case when t.tactic in ("Cashback", "Loyalty", "Loyalty Charity", "Coupon") then "Cashback/Loyalty/Coupon" 
-    when b.publisher_id is not null or c.publisher_id is not null or t.tactic = 'Social Creator Co' then "Social" 
+    case when (b.publisher_id is not null or c.publisher_id is not null or t.tactic = 'Social Creator Co') and cast(a.publisher_id as string) = '946733' then "Social - CreatorIQ" 
+    when (b.publisher_id is not null or c.publisher_id is not null or t.tactic = 'Social Creator Co') and cast(a.publisher_id as string) <> '946733' then "Social" 
     when t.tactic is null and b.publisher_id is null and c.publisher_id is null then 'NA'
     else t.tactic end as tactic
     from `etsy-data-warehouse-prod.marketing.awin_spend_data` a
