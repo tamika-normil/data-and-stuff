@@ -1,4 +1,3 @@
-
 create temp table awin_costs as 
 with exchange AS (
     SELECT
@@ -29,7 +28,7 @@ with exchange AS (
          AND b_0.target_currency = 'USD'
          AND UNIX_SECONDS(CAST(transaction_date AS TIMESTAMP)) BETWEEN b_0.create_date AND coalesce(b_0.cw_thru_date, UNIX_SECONDS(CAST(transaction_date AS TIMESTAMP)) )
          where commission_status in ('pending','approved')
-         AND customer_country in ('US','DE','CA','FR','GB')
+         AND region in ('US','DE','CA','FR','GB', 'UK')
       GROUP BY 1, 2 ;
 
 /*
@@ -65,7 +64,7 @@ create temp table performance_marketing_daily_tracker as
 
 with neustar as 
 (SELECT date, sum(cost) as cost, sum(visits) as visits 
-FROM `etsy-data-warehouse-dev.tnormil.awin_total`
+FROM `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates` 
 #performance_marketing_daily_tracker
 where date >= date_sub(current_date(), interval 3 quarter)
 #and country in ('US','DE','CA','FR','GB')
