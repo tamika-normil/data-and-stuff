@@ -1,0 +1,36 @@
+#channel credit for sdt receipts
+SELECT date_trunc(timestamp_seconds(purchase_date), month) as purchase_month,
+reporting_channel_group	,
+sum(external_source_decay_all) as attr_receipts
+FROM `etsy-data-warehouse-prod.buyatt_mart.attr_by_browser` ab
+join `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` r using (receipt_id)
+join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id
+left join etsy-data-warehouse-prod.buyatt_mart.channel_dimensions using (utm_campaign, utm_medium,	top_channel,	second_channel,		third_channel)
+where sdt_credit_usd > 0
+group by 1, 2;
+
+#channel credit for osa receipts 
+SELECT date_trunc(timestamp_seconds(purchase_date), month) as purchase_month,
+reporting_channel_group	,
+sum(external_source_decay_all) as attr_receipts
+FROM `etsy-data-warehouse-prod.buyatt_mart.attr_by_browser` ab
+left join `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` r using (receipt_id)
+join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id
+join etsy-data-warehouse-prod.rollups.osa_click_to_visit_join osa_v on ab.o_visit_id = osa_v.visit_id
+left join etsy-data-warehouse-prod.buyatt_mart.channel_dimensions using (utm_campaign, utm_medium,	top_channel,	second_channel,		third_channel)
+where date(timestamp_seconds(purchase_date)) >= '2022-01-01'
+group by 1, 2;
+
+#% of Active Sellers w/ OSA clicks
+create temp table osa_clicks as 
+(SELECT date(timestamp_seconds(click_date)) as date, count(distinct shop_id) as shops
+FROM`etsy-data-warehouse-prod.etsy_shard.ads_attribution_clicks` 
+group by 1
+);
+
+SELECT *
+FROM `etsy-data-warehouse-prod.rollups.active_sellers_rollup_daily` a
+left join osa_clicks o using (date)
+where a.date >= '2022-01-01' 
+
+#Average Daily Visits for Sellers w/ OSA Clicks
