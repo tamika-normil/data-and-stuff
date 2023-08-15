@@ -34,3 +34,23 @@ left join osa_clicks o using (date)
 where a.date >= '2022-01-01' 
 
 #Average Daily Visits for Sellers w/ OSA Clicks
+begin
+
+DECLARE start_dt date;
+
+SET start_dt =  '2019-12-01';
+
+create or replace temp table select_sellers as 
+(SELECT distinct shop_id, date(timestamp_seconds(click_date)) as date
+FROM`etsy-data-warehouse-prod.etsy_shard.ads_attribution_clicks` 
+);
+
+select date(_date) as date, seller_tier, sum(sm.shop_home_visits) as shop_home_visits, sum(sm.view_listing_visits) as view_listing_visits,
+count(distinct sm.user_id) as sellers,
+from `etsy-data-warehouse-prod.analytics.shop_metrics` sm
+join etsy-data-warehouse-prod.rollups.seller_basics_all sb using (user_id)
+join select_sellers ss on sb.shop_id = ss.shop_id and sm._date = ss.date
+where sm._date >= start_dt 
+group by 1,2;
+
+end
