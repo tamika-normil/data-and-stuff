@@ -1,4 +1,4 @@
---for affiliates who are sellers, what is the average number of visits. how many are att to affiliate and non paid social traffic.
+-- for affiliates who are sellers, what is the average number of visits. how many are att to affiliate and non paid social traffic.
 
 begin
 
@@ -7,9 +7,8 @@ DECLARE start_dt date;
 SET start_dt =  '2019-12-01';
 
 create temp table select_sellers as 
-(SELECT distinct user_id as seller_user_id
-FROM `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` 
-where sdt_credit_usd > 0);
+(select distinct user_id as seller_user_id
+from `etsy-data-warehouse-prod.etsy_shard.affiliate_users`);
 
 create temp table shop_listing_visits_temp as 
 (SELECT distinct date(v.start_datetime) as date, yt.seller_user_id, case when reporting_channel_group not in ( 'Affiliates', 'Dark', 'Non-Paid Social')  then 'Other' else replace(replace(reporting_channel_group,' ',''),'-','') end as reporting_channel_group , lv.visit_id
