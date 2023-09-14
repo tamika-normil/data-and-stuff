@@ -116,3 +116,13 @@ GROUP BY
     2,
     3,
     8;
+
+select
+listing_id, 
+one_year_revenue, 
+one_year_cost, 
+one_year_clicks
+from `etsy-data-warehouse-dev.static.de_vampire_listings`  where 
+one_year_clicks >= 50 
+and one_year_ROI_bins in ('0.0-0.1', '0.1-0.2', '0.2-0.3', '0.3-0.4', '0.4-0.5')
+and one_month_ROI_bins  in ('0.0-0.1', '0.1-0.2', '0.2-0.3', '0.3-0.4', '0.4-0.5', 'No Spend')
