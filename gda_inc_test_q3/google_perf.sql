@@ -2,7 +2,6 @@
 
 begin
 
-
 create temp table metro_dma_performance as  
 (with base as (
     select
@@ -18,7 +17,7 @@ create temp table metro_dma_performance as
         top_channel,
         second_channel,
         third_channel)
-    where purchase_date>='2023-01-01' 
+    where purchase_date>='2022-01-01' 
         #and engine = 'Google - Paid'
         and marketing_region = 'US'
     group by 1,2,3
@@ -54,8 +53,6 @@ select purchase_date as date,
 from receipts 
 group by 1,2 order by 1);
 
-
-
 /*
 create temp table metro_dma_spend as
 (select Day as date, substr(cast(Metro_area_code as string), 4) as dma, Clicks, Cost, Impressions
@@ -67,15 +64,16 @@ full outer join metro_dma_spend s using (date, dma);
 */
 
 create temp table metro_dma_spend as
-(select day as date, cast(MetroCode as string) as dma, sum(Cost__Converted_currency_) as cost,
+(select day as date, l.string_field_2 as dma, sum(Cost__Converted_currency_) as cost,
  sum(Impr_) as impressions, sum(clicks) clicks
-from etsy-data-warehouse-dev.tnormil.google_metro_dma_cost
+from etsy-data-warehouse-dev.tnormil.google_metro_dma_cost g
+    left join etsy-data-warehouse-dev.tnormil.metro_lookup l on g.DMA_Region__Matched_ = l.string_field_0	
 -- https://docs.google.com/spreadsheets/d/1NtUE_g1k3b3NIAcEnW0ggdr2wcIhkuvxfpXQMkmE0Qo/edit#gid=144236520
 group by 1,2);
 
 create or replace table etsy-data-warehouse-dev.tnormil.google_metro_dma_perf as
-(select coalesce(p.date, s.date) as date, coalesce(p.dma, s.dma) as geo, coalesce(etsy_revenue,0) as response, coalesce(Cost,0) as cost
-from metro_dma_performance p
+(select coalesce(p.date, s.date) as date, coalesce(p.dma, s.dma) as geo, coalesce(etsy_revenue,0) as response, coalesce(Cost,0) as cost, coalesce(buyers,0) as buyers, 
+from etsy-bigquery-adhoc-prod._script8f304b9c57bba252cd88b68fabdfa1e8dabaf64a.metro_dma_performance p
 full outer join metro_dma_spend s using (date, dma));
 
 end;
