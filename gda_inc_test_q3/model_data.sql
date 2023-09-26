@@ -89,3 +89,44 @@ and g.date >= '2023-01-01'
 and g.date <= '2023-08-01'
 group by 1,2,3,4,5,6,7,8
 order by 1 desc;
+
+-- validate the data
+with co as 
+    (select date(purchase_date) as day, sum(attributed_attr_rev - coalesce(prolist_revenue,0)) as attributed_rev 
+    from etsy-data-warehouse-prod.buyatt_rollups.channel_overview_restricted_purch_date
+    where marketing_region = 'US'
+    and purchase_date>='2023-04-01'
+    group by 1),
+daily_tracker as
+    (select date(day) as day, sum(cost) as cost,  
+    from etsy-data-warehouse-prod.buyatt_rollups.performance_marketing_daily_tracker
+    where engine = 'google'
+    and lower(account_name) like '% us%' 
+    and day>='2023-04-01'
+    group by 1),
+metro_dma as 
+    (select date as day, sum(response) as dma_attributed_rev,sum(cost) as dma_cost,sum(buyers) as buyers
+    from etsy-data-warehouse-dev.tnormil.google_metro_dma_perf
+    group by 1)
+select *
+from daily_tracker
+left join co using (day)
+left join metro_dma using (day)
+order by day desc; 
+    
+
+with daily_tracker as 
+    (select date(day) as day, sum(attributed_rev_purch_date + coalesce(gcp_costs_mult,0) - coalesce(prolist_revenue,0)) as attributed_rev,sum(cost) as cost,  
+    from etsy-data-warehouse-prod.buyatt_rollups.performance_marketing_daily_tracker
+    where engine = 'google'
+    and reporting_channel_group = 'Display'
+    and lower(account_name) like '% us%' 
+    and day>='2023-01-01' and day <='2023-05-19'
+    group by 1),
+metro_dma as 
+    (select date as day, sum(response) as dma_attributed_rev,sum(cost) as dma_cost,  
+    from etsy-data-warehouse-dev.tnormil.gda_metro_dma_perf
+    group by 1)
+select *
+from daily_tracker
+left join metro_dma using (day);
