@@ -1,4 +1,9 @@
-    with sg_base as (
+  with promo_code_user as 
+  #if the same user fills out the form multiple times with different codes, use the entry from the first visit
+      (select user_id,  REGEXP_EXTRACT(landing_event_url, r'promo_code=([^&]+)') AS promo_code, row_number() over (partition by user_id order by start_datetime asc) rnk from `etsy-data-warehouse-prod.weblog.visits` 
+      where _date > '2023-09-01' and user_id is not null 
+      qualify rnk = 1),
+  sg_base as (
           select
           a.shop_id,
           a.shop_name,
@@ -13,9 +18,7 @@
         `etsy-data-warehouse-prod.rollups.seller_basics` a
         inner join
         `etsy-data-warehouse-prod.rollups.optimised_sellers_upload` b on a.user_id = b.user_id
-        inner join
-        (select user_id, REGEXP_EXTRACT(landing_event_url, r'promo_code=([^&]+)') AS promo_code from `etsy-data-warehouse-prod.weblog.visits` where _date > '2023-09-01') c
-        on a.user_id = c.user_id),
+        left join promo_code_user c on a.user_id = c.user_id),
          sem_base as (
           select distinct
           a.shop_id,
@@ -32,9 +35,7 @@
         `etsy-data-warehouse-prod.rollups.seller_basics` a
         inner join
         `etsy-data-warehouse-prod.rollups.utm_shops` b on a.user_id = b.user_id
-        inner join
-        (select user_id,  REGEXP_EXTRACT(landing_event_url, r'promo_code=([^&]+)') AS promo_code from `etsy-data-warehouse-prod.weblog.visits` where _date > '2023-09-01') c
-        on a.user_id = c.user_id),
+        inner join promo_code_user c on a.user_id = c.user_id),
         sem_driven_SG as (
         select
         a.shop_id,
@@ -98,4 +99,4 @@
         from output a
         inner join  `etsy-data-warehouse-prod.rollups.seller_basics` b
         on a.shop_id = b.shop_id
-        where cast(first_date AS DATE) < current_date;;
+        where cast(first_date AS DATE) < current_date;
