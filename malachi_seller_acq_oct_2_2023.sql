@@ -1,4 +1,5 @@
-  with promo_code_user as 
+ create or replace table `etsy-data-warehouse-dev.tnormil.seller_acq` as
+ ( with promo_code_user as 
   #if the same user fills out the form multiple times with different codes, use the entry from the first visit
       (select user_id,  REGEXP_EXTRACT(landing_event_url, r'promo_code=([^&]+)') AS promo_code, row_number() over (partition by user_id order by start_datetime asc) rnk from `etsy-data-warehouse-prod.weblog.visits` 
       where _date > '2023-09-01' and user_id is not null 
@@ -99,4 +100,22 @@
         from output a
         inner join  `etsy-data-warehouse-prod.rollups.seller_basics` b
         on a.shop_id = b.shop_id
-        where cast(first_date AS DATE) < current_date;
+        where cast(first_date AS DATE) < current_date);
+
+-- check that these are the counts you would expect
+select first_date, sum(shops) as shops
+from `etsy-data-warehouse-dev.tnormil.seller_acq`
+group by 1
+order by 1 desc
+
+-- first_date	shops
+-- 2023-09-29 00:00:00.000000 UTC	0
+-- 2023-09-28 00:00:00.000000 UTC	9
+-- 2023-09-27 00:00:00.000000 UTC	9
+-- 2023-09-26 00:00:00.000000 UTC	15
+-- 2023-09-25 00:00:00.000000 UTC	13
+-- 2023-09-24 00:00:00.000000 UTC	17
+-- 2023-09-23 00:00:00.000000 UTC	9
+-- 2023-09-22 00:00:00.000000 UTC	20
+-- 2023-09-21 00:00:00.000000 UTC	15
+-- 2023-09-20 00:00:00.000000 UTC	19
