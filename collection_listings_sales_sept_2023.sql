@@ -1,6 +1,8 @@
 SELECT date_trunc(creation_tsz, quarter) as date, sum(gms_net) as gms
 FROM ( select distinct listing_id, case when quarter = 'Q1' then date('2023-03-27')
-when quarter = 'Q2' then date('2023-04-25') end as start_date
+when quarter = 'Q2' then date('2023-04-25') 
+when quarter = 'Q3' then date('2023-08-21') 
+end as start_date
 from `etsy-data-warehouse-dev.tnormil.martha_listings`)
 left join etsy-data-warehouse-prod.transaction_mart.all_transactions using (listing_id)
 left join etsy-data-warehouse-prod.transaction_mart.transactions_gms_by_trans using (transaction_id)
@@ -149,10 +151,12 @@ select distinct pv.ep_page_title,
   left join  collection_visits cv using (ep_page_title,visit_id)
   where v._date >= program_start_date and cv.visit_id is null) ;
 
-SELECT date_trunc(creation_tsz, quarter) as date, sum(gms_net) as gms,
+SELECT date(date_trunc(creation_tsz, quarter)) as date, min(date(creation_tsz)) as start_date, max(date(creation_tsz)) as end_date, sum(gms_net) as gms,
 sum(case when cv.visit_id is not null then gms_net else 0 end) as gms_attr_martha
 FROM ( select distinct listing_id, case when quarter = 'Q1' then date('2023-03-27')
-when quarter = 'Q2' then date('2023-04-25') end as start_date
+when quarter = 'Q2' then date('2023-04-25') 
+when quarter = 'Q3' then date('2023-08-21') 
+end as start_date
 from `etsy-data-warehouse-dev.tnormil.martha_listings`)
 left join etsy-data-warehouse-prod.transaction_mart.all_transactions att using (listing_id)
 left join etsy-data-warehouse-prod.transaction_mart.transactions_gms_by_trans using (transaction_id)
