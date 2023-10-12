@@ -1,3 +1,4 @@
+-- latest data validation https://docs.google.com/spreadsheets/d/1Ll06vfLMyOMt-gU3mJU6jb7z0ugE8juhJU1UYs6GTgA/edit#gid=1779331903
 create temp table awin_costs as 
 with exchange AS (
     SELECT
