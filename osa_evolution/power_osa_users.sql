@@ -1,5 +1,5 @@
 #top and power sellers with osa clicks in the past 3 months ordered by total number of clicks in the past 3 months
-#to be eligible, sellers must have another click within 30 days of their most recent click to ensure they are consistently drivng clicks.
+#to be eligible, sellers must have another click within 30 days of their most recent click to ensure they are regularly click active 
 
 with sum_clicks as 
     (select shop_id, date(timestamp_seconds(click_date)) as click_date, count(*) as clicks 
