@@ -29,6 +29,45 @@ left join etsy-data-warehouse-prod.buyatt_mart.visits v using (visit_id)
 where date(rg.creation_tsz) >= '2020-01-01'
 group by 1,2,3,4,5,6;
 
+-- Share of Purchases that GC by Region & Channel
+
+create table if not exists etsy-data-warehouse-dev.tnormil.gc_attr_by_browser as
+(select date(start_datetime) as date,
+top_channel, 
+second_channel,
+third_channel,
+utm_campaign, 
+utm_medium,
+marketing_region,
+sum(external_source_decay_all) as receipts,
+sum(case when gc.receipt_id is not null then external_source_decay_all end) as receipts_gc
+from etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab
+left join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id and v._date >= '2020-01-01'
+left join etsy-data-warehouse-dev.tnormil.gc_receipts gc on ab.receipt_id = gc.receipt_id
+where timestamp_seconds(o_visit_run_date) >= '2020-01-01'
+group by 1,2,3,4,5,6,7);
+  
+with base_data as
+(SELECT date, reporting_channel_group, sum(attributed_gms) as attributed_gms, sum(attributed_gms_adjusted_mult) as attributed_gms_adjusted_mult,
+FROM `etsy-data-warehouse-prod.buyatt_rollups.channel_overview` co
+left join etsy-data-warehouse-prod.buyatt_mart.channel_dimensions using (top_channel, second_channel, third_channel, utm_campaign, utm_medium)
+WHERE co.date >= '2020-01-01'
+group by 1,2)
+select date_trunc(date, month) as date_month,
+ date_trunc(date, quarter) as date_quarter,
+case when h.holiday is not null then 1 else 0 end as holiday,
+case when marketing_region = 'US' then 'US' else 'INTL' end as us_intl,
+reporting_channel_group,
+sum(coalesce(receipts,0) * coalesce(safe_divide(attributed_gms_adjusted_mult,attributed_gms),1) ) as receipts,
+sum(coalesce(receipts_gc,0) * coalesce(safe_divide(attributed_gms_adjusted_mult,attributed_gms),1) ) as receipts_gc
+from etsy-data-warehouse-dev.tnormil.gc_attr_by_browser
+left join etsy-data-warehouse-prod.buyatt_mart.channel_dimensions using (top_channel, second_channel, third_channel, utm_campaign, utm_medium)
+left join base_data using (date, reporting_channel_group)
+left join etsy-data-warehouse-dev.tnormil.holidays h using (date, marketing_region)
+where marketing_region in ('US','GB','DE','FR','CA') 
+group by 1,2,3,4,5
+order by 2,1;
+
 --- Buyer type distribution stuff
 
 CREATE OR REPLACE TEMPORARY TABLE receipt_data
