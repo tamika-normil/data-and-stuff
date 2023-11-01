@@ -1,3 +1,5 @@
+---- Queries related to gift card purchases
+
 --- Share of receipts related to gift cards
 
 create table if not exists etsy-data-warehouse-dev.tnormil.gc_receipts as 
