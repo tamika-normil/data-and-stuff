@@ -38,6 +38,12 @@ CREATE OR REPLACE TEMPORARY TABLE receipt_data
       `etsy-data-warehouse-prod.buyatt_mart.buyatt_analytics_clv`
     WHERE extract(YEAR from CAST(purchase_date as DATETIME)) >= 2018;
 
+select date_trunc(r.purchase_date,month) as month, buyer_type, count(distinct r.receipt_id) as receipts
+from receipt_data r
+join etsy-data-warehouse-dev.tnormil.gc_receipts_redemption g using (receipt_id)
+group by 1,2
+;
+
 --- What does the redemption funnel look like?
 -- % of Purchased Gift Cards are Redeemed & Time between Purchase & Redemption for those that are Redeemed in the US vs INTL markets, Filtered by Live Transactions
 
@@ -77,10 +83,4 @@ get_max as
 select distinct purchase_quarter, region, date_diff,
 sum(gift_cards) over (partition by purchase_quarter,region order by date_diff asc) as running_tot_gift_cards, tot,
 from base_data
-left join get_max using (purchase_quarter, region)
-
-select date_trunc(r.purchase_date,month) as month, buyer_type, count(distinct r.receipt_id) as receipts
-from receipt_data r
-join etsy-data-warehouse-dev.tnormil.gc_receipts_redemption g using (receipt_id)
-group by 1,2
-;
+left join get_max using (purchase_quarter, region);
