@@ -19,12 +19,13 @@ join `etsy-data-warehouse-prod.etsy_shard.ads_attributed_receipts` ar on t.order
 join `etsy-data-warehouse-prod.buyatt_mart.attr_by_browser` ab using (receipt_id)
 join `etsy-data-warehouse-prod.buyatt_mart.visits` b on ab.o_visit_run_date = b.run_date and ab.o_visit_id = b.visit_id
 left join att_visits att using (visit_id)
+LEFT JOIN `etsy-data-warehouse-prod.transaction_mart.all_receipts` r on t.order_ref = cast(r.receipt_id as string)
 where ar.channel = 6 
-and commission_status in ('pending') #please add line here 
+and commission_status in ('pending') 
+and receipt_live = 1 #please add line here
 and date(transaction_date) >= current_date - 31
 and _date>= current_date-61 and o_visit_run_date>= unix_seconds(timestamp(current_date-61)) and run_date>= unix_seconds(timestamp(current_date-61))
 and ((mapped_platform_type like 'boe_ios%%' and att.visit_id is not null) or mapped_platform_type not like 'boe_ios%%'));
-
 
 create temporary table validations as
 (SELECT distinct t.receipt_id as Order_Reference,
