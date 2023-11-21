@@ -1,4 +1,5 @@
 -- latest data validation https://docs.google.com/spreadsheets/d/1Ll06vfLMyOMt-gU3mJU6jb7z0ugE8juhJU1UYs6GTgA/edit#gid=1779331903
+
 create temp table awin_costs as 
 with exchange AS (
     SELECT
@@ -65,8 +66,8 @@ create temp table performance_marketing_daily_tracker as
 */
 
 with neustar as 
-(SELECT date, sum(cost) as cost, sum(visits) as visits 
-FROM `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates` 
+(SELECT date, sum(cost) as cost, sum(visits) as visits, sum(impressions) as impressions
+FROM `etsy-data-warehouse-prod.rollups.neustar_etl_affiliates` 
 #performance_marketing_daily_tracker
 where date >= date_sub(current_date(), interval 3 quarter)
 #and country in ('US','DE','CA','FR','GB')
@@ -91,7 +92,7 @@ left join  awin_costs_agg a using (date);
 -- market level check 
 with neustar as 
 (SELECT date, country, sum(cost) as cost, sum(visits) as visits, sum(impressions) as impressions 
-FROM `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates` 
+FROM `etsy-data-warehouse-prod.rollups.neustar_etl_affiliates` 
 #performance_marketing_daily_tracker
 where date >= date_sub(current_date(), interval 3 quarter)
 #and country in ('US','DE','CA','FR','GB')
@@ -114,7 +115,6 @@ left join channel_overview co using (date, country)
 left join  awin_costs_agg a using (date, country);
 
 -- check impressions data
-
 with base as (SELECT date(post_date) as post_date, 
   case when campaign_name like '%(USA)%' then 'US'
   when campaign_name like '%(CA)%' then 'CA'
