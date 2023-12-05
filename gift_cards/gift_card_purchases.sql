@@ -208,6 +208,51 @@ left join `etsy-data-warehouse-prod.rollups.buyer_basics` using (mapped_user_id)
 left join gms_share_buyer_type using (receipt_id)
 group by 1,2,3,4;
 
+-- buyer type distibution by frequency x target gender (more detailed as it includes index to compare to company wide stats)
+
+with gms_share_buyer_type as 
+    (select gc.*, r.buyer_type, 
+      CASE when date_diff(gc.purchase_date, r.purchase_date, day) = 0 then r.buyer_type else 
+      CASE 
+        WHEN buyer_type is null THEN 'new_buyer'
+        WHEN date_diff(gc.purchase_date, r.purchase_date, day) >= 365 then 'reactivated_buyer'
+        WHEN purchase_day_number + 1 = 2
+        AND date_diff(gc.purchase_date, r.purchase_date, day) < 365 THEN '2x_buyer'
+        WHEN purchase_day_number + 1 = 3
+        AND date_diff(gc.purchase_date, r.purchase_date, day) < 365 THEN '3x_buyer'
+        WHEN purchase_day_number + 1 >= 4 and purchase_day_number + 1 <= 9
+        AND date_diff(gc.purchase_date, r.purchase_date, day) < 365 THEN '4_to_9x_buyer'
+        WHEN purchase_day_number + 1 >= 10
+        AND date_diff(gc.purchase_date, r.purchase_date, day) < 365 THEN '10plus_buyer'
+        ELSE 'other'
+      END END AS buyer_type_new,
+    date_diff(gc.purchase_date, r.purchase_date, day) as days_between,
+    row_number() over (partition by gc.receipt_id order by date_diff(gc.purchase_date, r.purchase_date, day) asc) as rnk
+    from etsy-data-warehouse-dev.tnormil.gc_receipts gc
+    left join receipt_data r on gc.mapped_user_id = r.mapped_user_id and gc.purchase_date >= r.purchase_date
+    qualify rnk = 1 or rnk is null),
+gc_share as 
+    (select case when country = 'United States' then 'US' else 'INTL' end as us_intl,
+    date_trunc(gc.purchase_date, month) as month, target_gender ,
+    case when buyer_type_new in ('4_to_9x_buyer', '10plus_buyer') then 'habitual' when buyer_type_new is not null then buyer_type_new else 'unknown' end as buyer_type,
+    count(distinct gc.receipt_id) as receipts
+    from etsy-data-warehouse-dev.tnormil.gc_receipts gc
+    left join `etsy-data-warehouse-prod.rollups.buyer_basics` using (mapped_user_id)
+    left join gms_share_buyer_type using (receipt_id)
+    group by 1,2,3,4),
+all_share as 
+    (select case when country = 'United States' then 'US' else 'INTL' end as us_intl,
+    date_trunc(purchase_date, month) as month, target_gender ,
+    case when buyer_type in ('4_to_9x_buyer', '10plus_buyer') then 'habitual' when buyer_type is not null then buyer_type else 'unknown' end as buyer_type,
+    count(distinct receipt_id) as receipts
+    from receipt_data 
+    left join `etsy-data-warehouse-prod.rollups.buyer_basics` using (mapped_user_id)
+    group by 1,2,3,4)
+select g.*, a.*
+from gc_share g
+left join all_share a using (us_intl, month,  target_gender,  buyer_type)
+;
+
 -- buyer type distibution by frequency x age
 
 with gms_share_buyer_type as 
@@ -239,6 +284,51 @@ from etsy-data-warehouse-dev.tnormil.gc_receipts gc
 left join `etsy-data-warehouse-prod.rollups.buyer_basics` using (mapped_user_id)
 left join gms_share_buyer_type using (receipt_id)
 group by 1,2,3,4;
+
+-- buyer type distibution by frequency x age (more detailed as it includes index to compare to company wide stats)
+
+with gms_share_buyer_type as 
+    (select gc.*, r.buyer_type, 
+      CASE when date_diff(gc.purchase_date, r.purchase_date, day) = 0 then r.buyer_type else 
+      CASE 
+        WHEN buyer_type is null THEN 'new_buyer'
+        WHEN date_diff(gc.purchase_date, r.purchase_date, day) >= 365 then 'reactivated_buyer'
+        WHEN purchase_day_number + 1 = 2
+        AND date_diff(gc.purchase_date, r.purchase_date, day) < 365 THEN '2x_buyer'
+        WHEN purchase_day_number + 1 = 3
+        AND date_diff(gc.purchase_date, r.purchase_date, day) < 365 THEN '3x_buyer'
+        WHEN purchase_day_number + 1 >= 4 and purchase_day_number + 1 <= 9
+        AND date_diff(gc.purchase_date, r.purchase_date, day) < 365 THEN '4_to_9x_buyer'
+        WHEN purchase_day_number + 1 >= 10
+        AND date_diff(gc.purchase_date, r.purchase_date, day) < 365 THEN '10plus_buyer'
+        ELSE 'other'
+      END END AS buyer_type_new,
+    date_diff(gc.purchase_date, r.purchase_date, day) as days_between,
+    row_number() over (partition by gc.receipt_id order by date_diff(gc.purchase_date, r.purchase_date, day) asc) as rnk
+    from etsy-data-warehouse-dev.tnormil.gc_receipts gc
+    left join receipt_data r on gc.mapped_user_id = r.mapped_user_id and gc.purchase_date >= r.purchase_date
+    qualify rnk = 1 or rnk is null),
+gc_share as 
+    (select case when country = 'United States' then 'US' else 'INTL' end as us_intl,
+    date_trunc(gc.purchase_date, month) as month, estimated_age ,
+    case when buyer_type_new in ('4_to_9x_buyer', '10plus_buyer') then 'habitual' when buyer_type_new is not null then buyer_type_new else 'unknown' end as buyer_type,
+    count(distinct gc.receipt_id) as receipts
+    from etsy-data-warehouse-dev.tnormil.gc_receipts gc
+    left join `etsy-data-warehouse-prod.rollups.buyer_basics` using (mapped_user_id)
+    left join gms_share_buyer_type using (receipt_id)
+    group by 1,2,3,4),
+all_share as 
+    (select case when country = 'United States' then 'US' else 'INTL' end as us_intl,
+    date_trunc(purchase_date, month) as month, estimated_age ,
+    case when buyer_type in ('4_to_9x_buyer', '10plus_buyer') then 'habitual' when buyer_type is not null then buyer_type else 'unknown' end as buyer_type,
+    count(distinct receipt_id) as receipts
+    from receipt_data 
+    left join `etsy-data-warehouse-prod.rollups.buyer_basics` using (mapped_user_id)
+    group by 1,2,3,4)
+select g.*, a.*
+from gc_share g
+left join all_share a using (us_intl, month, estimated_age,  buyer_type)
+;
 
 --- AOV stuff
 
