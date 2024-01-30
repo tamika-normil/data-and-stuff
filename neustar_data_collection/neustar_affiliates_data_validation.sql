@@ -1,37 +1,21 @@
 -- latest data validation https://docs.google.com/spreadsheets/d/1Ll06vfLMyOMt-gU3mJU6jb7z0ugE8juhJU1UYs6GTgA/edit#gid=1779331903
 
+select *
+from  `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates`
+where date <= '2023-12-13' ;
+
 create temp table awin_costs as 
-with exchange AS (
-    SELECT
-        source_currency,
-        source_precision,
-        target_currency,
-        target_precision,
-        market_rate,
-        seller_rate,
-        buyer_rate,
-        create_date,
-        date,
-        creation_tsz,
-        lead(create_date, 1) OVER (PARTITION BY source_currency, target_currency ORDER BY create_date) - 1 AS cw_thru_date
-      FROM
-        `etsy-data-warehouse-prod.materialized.exchange_rates`)
-    SELECT
-        DATE(transaction_date) AS day,
+ SELECT
+        day,
         concat(substr(CAST(publisher_id as STRING), 1, 80), ' - ', region) AS account_name,
         case when region = 'UK' then 'GB' else region end as country,    
-        sum(a.commission_amount_amount * coalesce(b_0.market_rate / CAST(10000000 as BIGNUMERIC), CAST(1 as BIGNUMERIC))) AS cost,
-        sum(a.commission_amount_amount) as cost_no_exchange,
-        sum(a.sale_amount_amount * coalesce(b_0.market_rate / CAST(10000000 as BIGNUMERIC), CAST(1 as BIGNUMERIC))) AS sales,
+        sum(cost) AS cost,
+        sum(sales) AS sales,
         0 AS impressions,
         'affiliate' AS engine
       FROM
-        `etsy-data-warehouse-prod.marketing.awin_spend_data` AS a
-        LEFT OUTER JOIN exchange AS b_0 ON a.commission_amount_currency = b_0.source_currency
-         AND b_0.target_currency = 'USD'
-         AND UNIX_SECONDS(CAST(transaction_date AS TIMESTAMP)) BETWEEN b_0.create_date AND coalesce(b_0.cw_thru_date, UNIX_SECONDS(CAST(transaction_date AS TIMESTAMP)) )
-         where commission_status in ('pending','approved')
-         AND region in ('US','DE','CA','FR','GB', 'UK')
+        `etsy-data-warehouse-prod.rollups.awin_spend_data` AS a
+      WHERE region in ('US','DE','CA','FR','GB', 'UK')
       GROUP BY 1, 2, 3;
 
 /*
@@ -67,7 +51,7 @@ create temp table performance_marketing_daily_tracker as
 
 with neustar as 
 (SELECT date, sum(cost) as cost, sum(visits) as visits, sum(impressions) as impressions
-FROM `etsy-data-warehouse-prod.rollups.neustar_etl_affiliates` 
+FROM `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates` 
 #performance_marketing_daily_tracker
 where date >= date_sub(current_date(), interval 3 quarter)
 #and country in ('US','DE','CA','FR','GB')
@@ -92,7 +76,7 @@ left join  awin_costs_agg a using (date);
 -- market level check 
 with neustar as 
 (SELECT date, country, sum(cost) as cost, sum(visits) as visits, sum(impressions) as impressions 
-FROM `etsy-data-warehouse-prod.rollups.neustar_etl_affiliates` 
+FROM `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates` 
 #performance_marketing_daily_tracker
 where date >= date_sub(current_date(), interval 3 quarter)
 #and country in ('US','DE','CA','FR','GB')
