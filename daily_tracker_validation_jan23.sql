@@ -303,6 +303,7 @@ CREATE TEMPORARY TABLE daily_tracker as
     FROM  `etsy-data-warehouse-dev.buyatt_rollups.performance_marketing_daily_tracker`
     group by 1,2);
 
+-- check if yearly figures match between dev and prod for cost
 SELECT date_trunc(day, year) as year, 
 sum(cost),
 'dev' as env
@@ -315,6 +316,7 @@ sum(cost),
 FROM costs
 group by 1;
 
+-- check if yearly figures match between dev and prod for cd gms, rev, etc.
 SELECT date_trunc(day, year) as year, 
 sum(gms),
 sum(rev),
@@ -330,6 +332,7 @@ FROM channel_overview
 where engine in ('google','affiliate','facebook','pinterest', 'bing')
 group by 1;
 
+-- check if yearly figures match between dev and prod for pd gms, rev, etc.
 SELECT date_trunc(day, year) as year, 
 sum(gms_pd),
 sum(rev_pd),
@@ -344,7 +347,8 @@ sum(rev_pd),
 FROM channel_overview_pd
 where engine in ('google','affiliate','facebook','pinterest', 'bing')
 group by 1;
-   
+
+-- check if daily figures match between dev and prod for cd gms, rev, etc.
 select c.day, 
 c.engine, 
 c.gms,
@@ -361,6 +365,7 @@ left join daily_tracker a using (day, engine)
 where c.day >= '2019-01-01'
 order by 2,1 desc;
 
+-- check if daily figures match between dev and prod for pd gms, rev, etc.
 select c.day, 
 c.engine, 
 c.gms_pd,
@@ -377,6 +382,7 @@ left join daily_tracker a using (day, engine)
 where c.day >= '2019-01-01'
 order by 2,1 desc;
 
+-- check if daily figures match between dev and prod for cost
 select c.day, 
 c.engine, 
 c.cost,
