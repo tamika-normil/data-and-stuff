@@ -1,5 +1,5 @@
 create temp table buyer_type_labels as 
-(SELECT 'zero_time_buyer' as buyer_type, '1. zero time buyer' as buyer_type_label
+(SELECT 'zero_time_buyer' as buyer_type, '1. zero_time_buyer' as buyer_type_label
 UNION ALL SELECT 'reactivated_buyer', '2. reactivated_buyer'
 UNION ALL SELECT 'new_buyer', '3. new_buyer'
 UNION ALL SELECT '2x_buyer', '4. 2x_buyer'
@@ -8,31 +8,40 @@ UNION ALL SELECT '4_to_9x_buyer', '6. 4_to_9x_buyer'
 UNION ALL SELECT '10plus_buyer', '7. 10plus_buyer');
 
 create temp table buyer_type_risk as 
-(Select '5. 3x_buyer' as buyer_type,'2. reactivated_buyer' as optin_buyer_type,-231685.834832114 as value, 'low risk' as risk UNION ALL 
+(Select '5. 3x_buyer' as buyer_type  ,'2. reactivated_buyer' as optin_buyer_type ,-222312.383982733  as value, 'low risk' as risk UNION ALL 
+Select '5. 3x_buyer' ,'6. 4_to_9x_buyer' ,-158.353817375212, 'low risk' UNION ALL 
 Select '5. 3x_buyer' ,'5. 3x_buyer' ,0, 'low risk' UNION ALL 
-Select '5. 3x_buyer' ,'4. 2x_buyer' ,14696.1582067437, 'low risk' UNION ALL 
-Select '5. 3x_buyer' ,'1. zero_time_buyer' ,374107.775460455, 'low risk' UNION ALL 
-Select '5. 3x_buyer' ,'3. new_buyer' ,491938.263578918, 'low risk' UNION ALL 
+Select '5. 3x_buyer' ,'7. 10plus_buyer' ,2.19511079987923, 'low risk' UNION ALL 
+Select '5. 3x_buyer' ,'4. 2x_buyer' ,14247.0790841577, 'low risk' UNION ALL 
+Select '5. 3x_buyer' ,'1. zero_time_buyer' ,364390.685340555, 'low risk' UNION ALL 
+Select '5. 3x_buyer' ,'3. new_buyer' ,480906.649086511, 'low risk' UNION ALL 
+Select '2. reactivated_buyer' ,'6. 4_to_9x_buyer' ,-283.000301584384, 'low risk' UNION ALL 
+Select '2. reactivated_buyer' ,'7. 10plus_buyer' ,-132.47419147988, 'low risk' UNION ALL 
 Select '2. reactivated_buyer' ,'2. reactivated_buyer' ,0, 'low risk' UNION ALL 
-Select '2. reactivated_buyer' ,'1. zero_time_buyer' ,495575.618442782, 'low risk' UNION ALL 
-Select '2. reactivated_buyer' ,'3. new_buyer' ,799213.22793096, 'mid risky' UNION ALL 
-Select '4. 2x_buyer' ,'2. reactivated_buyer' ,-322.473207361953, 'low risk' UNION ALL 
+Select '2. reactivated_buyer' ,'4. 2x_buyer' ,0, 'low risk' UNION ALL 
+Select '2. reactivated_buyer' ,'5. 3x_buyer' ,17.0753653822589, 'low risk' UNION ALL 
+Select '2. reactivated_buyer' ,'1. zero_time_buyer' ,479608.508307452, 'low risk' UNION ALL 
+Select '2. reactivated_buyer' ,'3. new_buyer' ,748723.367744913, 'mid risky' UNION ALL 
+Select '4. 2x_buyer' ,'2. reactivated_buyer' ,-315.229493645777, 'low risk' UNION ALL 
+Select '4. 2x_buyer' ,'6. 4_to_9x_buyer' ,-101.02264211317, 'low risk' UNION ALL 
+Select '4. 2x_buyer' ,'5. 3x_buyer' ,-14.3264053666579, 'low risk' UNION ALL 
 Select '4. 2x_buyer' ,'4. 2x_buyer' ,0, 'low risk' UNION ALL 
-Select '4. 2x_buyer' ,'1. zero_time_buyer' ,517095.437046857, 'low risk' UNION ALL 
-Select '4. 2x_buyer' ,'3. new_buyer' ,1073761.50106857, 'mid risky' UNION ALL 
+Select '4. 2x_buyer' ,'1. zero_time_buyer' ,504639.208631629, 'low risk' UNION ALL 
+Select '4. 2x_buyer' ,'3. new_buyer' ,1049839.59118424, 'mid risky' UNION ALL 
+Select '6. 4_to_9x_buyer' ,'7. 10plus_buyer' ,-118.820588496794, 'low risk' UNION ALL 
 Select '6. 4_to_9x_buyer' ,'6. 4_to_9x_buyer' ,0, 'low risk' UNION ALL 
-Select '6. 4_to_9x_buyer' ,'4. 2x_buyer' ,377709.552199404, 'low risk' UNION ALL 
-Select '6. 4_to_9x_buyer' ,'5. 3x_buyer' ,735072.651300795, 'mid risky' UNION ALL 
-Select '6. 4_to_9x_buyer' ,'2. reactivated_buyer' ,961107.09164714, 'mid risky' UNION ALL 
-Select '6. 4_to_9x_buyer' ,'3. new_buyer' ,1258558.06524916, 'mid risky' UNION ALL 
-Select '6. 4_to_9x_buyer' ,'1. zero_time_buyer' ,1852077.59369205, 'high risk' UNION ALL 
+Select '6. 4_to_9x_buyer' ,'4. 2x_buyer' ,367695.382823213, 'low risk' UNION ALL 
+Select '6. 4_to_9x_buyer' ,'5. 3x_buyer' ,710437.286986572, 'mid risky' UNION ALL 
+Select '6. 4_to_9x_buyer' ,'2. reactivated_buyer' ,869161.588584204, 'mid risky' UNION ALL 
+Select '6. 4_to_9x_buyer' ,'3. new_buyer' ,1227038.38230585, 'mid risky' UNION ALL 
+Select '6. 4_to_9x_buyer' ,'1. zero_time_buyer' ,1794488.01302164, 'high risk' UNION ALL 
 Select '7. 10plus_buyer' ,'7. 10plus_buyer' ,0, 'low risk' UNION ALL 
-Select '7. 10plus_buyer' ,'4. 2x_buyer' ,197834.697576754, 'low risk' UNION ALL 
-Select '7. 10plus_buyer' ,'5. 3x_buyer' ,335616.135274985, 'low risk' UNION ALL 
-Select '7. 10plus_buyer' ,'3. new_buyer' ,748747.337906356, 'mid risky' UNION ALL 
-Select '7. 10plus_buyer' ,'6. 4_to_9x_buyer' ,1271237.15271009, 'mid risky' UNION ALL 
-Select '7. 10plus_buyer' ,'1. zero_time_buyer' ,2152876.84066547, 'high risk' UNION ALL 
-Select '7. 10plus_buyer' ,'2. reactivated_buyer' ,7315430.72075589, 'extremely risky');
+Select '7. 10plus_buyer' ,'4. 2x_buyer' ,190169.527632396, 'low risk' UNION ALL 
+Select '7. 10plus_buyer' ,'5. 3x_buyer' ,321772.239374253, 'low risk' UNION ALL 
+Select '7. 10plus_buyer' ,'3. new_buyer' ,720168.412324002, 'mid risky' UNION ALL 
+Select '7. 10plus_buyer' ,'6. 4_to_9x_buyer' ,1191763.95989725, 'mid risky' UNION ALL 
+Select '7. 10plus_buyer' ,'1. zero_time_buyer' ,2043479.38820464, 'low risk' UNION ALL 
+Select '7. 10plus_buyer' ,'2. reactivated_buyer' ,6335431.70585748, 'low risk');
 
 -- add buyer type labels to actual receipt data over time
 
@@ -109,6 +118,7 @@ safe_divide(unique_opt_out_browsers, unique_browsers) as share_opt_out,
 count(distinct mapped_user_id) as users 
 from etsy-data-warehouse-dev.tnormil.opp_sizing_liveramp
 where mapped_user_id is not null
+and gdpr_opt_out = 0
 group by 1,2,3;
 
 -- validate opt out rate by lookback window
@@ -120,13 +130,14 @@ SELECT attribution_window_number_of_day, sum(unique_browsers) as unique_browsers
 , sum(opt_out_visits) as opt_out_visits
 FROM etsy-data-warehouse-dev.tnormil.opp_sizing_liveramp
 where mapped_user_id is not null
+and gdpr_opt_out = 0
 group by 1
 order by 1 desc;
 
 -- number of devices and opted out share of devices by latest buyer freq status
 
 select unique_browsers, 
-case when l.buyer_type is null then '1. zero time buyer' else buyer_type_label end as buyer_type, 
+case when l.buyer_type is null then '1. zero_time_buyer' else buyer_type_label end as buyer_type, 
 safe_divide(unique_opt_out_browsers, unique_browsers) as share_opt_out,
 count(distinct o.mapped_user_id) as users 
 from etsy-data-warehouse-dev.tnormil.opp_sizing_liveramp o
@@ -134,7 +145,24 @@ left join last_purchase l using (mapped_user_id)
 where o.mapped_user_id is not null
 and attribution_window_number_of_day = 1095
 and unique_browsers <= 20
+and gdpr_opt_out = 0
 group by 1,2,3;
+
+-- number of devices and opted out share of devices by latest buyer freq status and country
+
+select unique_browsers, 
+case when country = 'US' then country else 'INTL' end as country, 
+case when l.buyer_type is null then '1. zero_time_buyer' else buyer_type_label end as buyer_type, 
+safe_divide(unique_opt_out_browsers, unique_browsers) as share_opt_out,
+count(distinct o.mapped_user_id) as users 
+from etsy-data-warehouse-dev.tnormil.opp_sizing_liveramp o
+left join last_purchase l using (mapped_user_id)
+left join etsy-data-warehouse-prod.user_mart.mapped_user_profile using (mapped_user_id)
+where o.mapped_user_id is not null
+and attribution_window_number_of_day = 1095
+and unique_browsers <= 20
+and gdpr_opt_out = 0
+group by 1,2,3,4;
 
 
 -- join actual recent data to opted in receipt data 
@@ -172,14 +200,17 @@ create temp table adjusted_receipt_data as
 (with dates as
 (select r.mapped_user_id, r.purchase_date, r.buyer_type, r.purchase_day_number, sum(ltv_revenue * external_source_decay_all) as ltv_revenue, 
 sum(case when v.visit_id is not null then ltv_revenue * external_source_decay_all end) paid_ltv_revenue,
+sum(case when v.visit_id is not null and reporting_channel_group in ('Display','Paid Social') then ltv_revenue * external_source_decay_all end) paid_ltv_revenue_push,
 sum(external_source_decay_all) as cvr, 
 sum(case when v.visit_id is not null then external_source_decay_all end) paid_cvr,
+sum(case when v.visit_id is not null and reporting_channel_group in ('Display','Paid Social') then external_source_decay_all end) paid_cvr_push,
 from 
 receipt_data r
 left join  etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab on r.receipt_id = ab.receipt_id
 and ab.o_visit_run_date >= unix_seconds(timestamp('2021-01-01'))
 left join etsy-data-warehouse-prod.buyatt_mart.visits v on ab.o_visit_id = v.visit_id and v.top_channel in ('us_paid','intl_paid')
 and v._date >= '2021-01-01'
+left join etsy-data-warehouse-prod.buyatt_mart.channel_dimensions using (utm_campaign, utm_medium, top_channel, second_channel, third_channel)
 group by 1,2,3,4),
 optin_dates as
   (select distinct mapped_user_id, purchase_date, 
@@ -200,7 +231,8 @@ optin_dates as
   from etsy-data-warehouse-dev.tnormil.ltv_user_data),
 adjusted_receipt_data as 
   (select d.mapped_user_id, d.purchase_date as purchase_date, d.buyer_type as buyer_type, d.ltv_revenue, d.paid_ltv_revenue,
-  d.cvr, d.paid_cvr, d.purchase_day_number as purchase_days, 
+  d.cvr, d.paid_cvr, d.paid_ltv_revenue_push, d.paid_cvr_push,
+  d.purchase_day_number as purchase_days, 
   l.mapped_user_id as optin_mapped_user_id,
   l.purchase_date as optin_purchase_date, l.buyer_type as optin_buyer_type,
   l.purchase_days as optin_purchase_days,
@@ -212,8 +244,8 @@ adjusted_receipt_data as
   left join optin_dates l using (mapped_user_id, purchase_date)
   --where d.mapped_user_id in (108048887, 77595767, 192287667, 12402178, 70823224, 63229192, 668480986)
   ORDER BY d.mapped_user_id, d.purchase_date)
-select a.mapped_user_id, a.purchase_date as purchase_date, a.buyer_type as buyer_type, a.ltv_revenue, a.paid_ltv_revenue,
-a.cvr, a.paid_cvr, a.purchase_days, 
+select a.mapped_user_id, a.purchase_date as purchase_date, a.buyer_type as buyer_type, a.ltv_revenue, a.paid_ltv_revenue, a.paid_ltv_revenue_push,
+a.cvr, a.paid_cvr, a.paid_cvr_push, a.purchase_days, 
  optin_purchase_date, optin_buyer_type, optin_purchase_days,
 optin_purchase_date_most_recent,
 b.purchase_days as optin_purchase_days_most_recent,
@@ -232,14 +264,37 @@ a.buyer_type,
 a.optin_buyer_type_most_recent,
 b1.buyer_type_label as buyer_type_label, 
 b2.buyer_type_label as optin_buyer_type_label_most_recent,
+b2.buyer_type_label as optin_buyer_type_label_most_recent,
 sum(ltv_revenue) as ltv_revenue,
 sum(paid_ltv_revenue) as paid_ltv_revenue,
 sum(cvr) as cvr,
-sum(paid_cvr) as cvr,
+sum(paid_cvr) as paid_cvr,
 from adjusted_receipt_data a
 left join buyer_type_labels b1 using (buyer_type)
 left join buyer_type_labels b2 on a.optin_buyer_type_most_recent = b2.buyer_type
-group by 1,2,3,4,5;
+left join etsy-data-warehouse-dev.tnormil.opp_sizing_liveramp o on a.mapped_user_id = o.mapped_user_id and o.attribution_window_number_of_day = 1095
+where gdpr_opt_out = 0
+group by 1,2,3,4,5,6;
+
+select date_trunc(purchase_date, year) as year, 
+a.buyer_type,
+a.optin_buyer_type_most_recent,
+b1.buyer_type_label as buyer_type_label, 
+b2.buyer_type_label as optin_buyer_type_label_most_recent,
+b2.buyer_type_label as optin_buyer_type_label_most_recent,
+sum(ltv_revenue) as ltv_revenue,
+sum(paid_ltv_revenue) as paid_ltv_revenue,
+sum(paid_ltv_revenue_push) as paid_ltv_revenue_push,
+sum(cvr) as cvr,
+sum(paid_cvr) as paid_cvr,
+sum(paid_cvr_push) as paid_cvr_push,
+from adjusted_receipt_data a
+left join buyer_type_labels b1 using (buyer_type)
+left join buyer_type_labels b2 on a.optin_buyer_type_most_recent = b2.buyer_type
+left join etsy-data-warehouse-dev.tnormil.opp_sizing_liveramp o on a.mapped_user_id = o.mapped_user_id and o.attribution_window_number_of_day = 1095
+where gdpr_opt_out = 0
+group by 1,2,3,4,5,6;
+
 
 -- validate revenue + conversions reported by adjusted receipts data against source data for validation 
 
@@ -287,6 +342,7 @@ left join last_purchase_adjusted l using (mapped_user_id)
 where o.mapped_user_id is not null
 and attribution_window_number_of_day = 1095
 and unique_browsers <= 20
+and gdpr_opt_out = 0
 group by 1,2,3,4)
 select unique_browsers, 
 x.buyer_type, 
