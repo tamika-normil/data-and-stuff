@@ -1,13 +1,5 @@
 ---- Queries related to gift card redemptions
 
-create or replace table etsy-data-warehouse-dev.tnormil.gc_receipts_redemption as 
-  (select receipt_id, date(creation_tsz) as purchase_date, aat.mapped_user_id, buyer_type, count(*) as cnt
-  from etsy-data-warehouse-prod.transaction_mart.all_transactions aat
-  join etsy-data-warehouse-prod.rollups.giftcard_by_receipt using (receipt_id)
-  left join receipt_data using (receipt_id)
-  where date(creation_tsz) >= '2020-01-01'
-  group by 1,2,3,4);
-
 --- Buyer type distribution of gift card redemptions
 
 CREATE OR REPLACE TEMPORARY TABLE receipt_data
@@ -39,13 +31,20 @@ CREATE OR REPLACE TEMPORARY TABLE receipt_data
       `etsy-data-warehouse-prod.buyatt_mart.buyatt_analytics_clv`
     WHERE extract(YEAR from CAST(purchase_date as DATETIME)) >= 2018;
 
+create or replace table etsy-data-warehouse-dev.tnormil.gc_receipts_redemption as 
+  (select receipt_id, date(creation_tsz) as purchase_date, aat.mapped_user_id, buyer_type, count(*) as cnt
+  from etsy-data-warehouse-prod.transaction_mart.all_transactions aat
+  join etsy-data-warehouse-prod.rollups.giftcard_by_receipt using (receipt_id)
+  left join receipt_data using (receipt_id)
+  where date(creation_tsz) >= '2020-01-01'
+  group by 1,2,3,4);
+
 select date_trunc(r.purchase_date,month) as month, buyer_type, count(distinct r.receipt_id) as receipts
 from receipt_data r
 join etsy-data-warehouse-dev.tnormil.gc_receipts_redemption g using (receipt_id)
 group by 1,2
 ;
 
-≈
 -- % of Purchased Gift Cards are Claimed & Time between Purchase & Claim Date for those that are Redeemed in the US vs INTL markets, Filtered by Live Transactions
 
 with base_data as
