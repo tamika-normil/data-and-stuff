@@ -1,6 +1,11 @@
 begin 
 
-#first visit or join dated on occured on after as_of_date
+CREATE OR REPLACE TEMP TABLE daily_gms AS (
+  select date, mapped_user_id, sum(gms_net) as gms_net, count(distinct receipt_id) as receipts
+  from `etsy-data-warehouse-prod.transaction_mart.transactions_gms_by_trans` 
+  where market <> 'ipp'
+  group by 1,2
+);
 
 -- stats of buyers who made a purchase since 2022
 CREATE OR REPLACE TEMP TABLE buyer_segments AS (
@@ -9,12 +14,7 @@ CREATE OR REPLACE TEMP TABLE buyer_segments AS (
       -- date('2020-12-31') as as_of_date, 
       -- end_date as as_of_date, 
       as_of_date
-    FROM UNNEST(ARRAY<DATE>[
-      DATE('2023-12-31'), 
-      DATE('2022-12-31'), 
-      DATE('2021-12-31'),
-      DATE('2020-12-31'),
-      DATE('2019-12-31')]) AS as_of_date
+    FROM UNNEST( GENERATE_DATE_ARRAY('2020-01-01', DATE_TRUNC(CURRENT_DATE, MONTH), INTERVAL 1 MONTH ) ) AS as_of_date
   ),
   purchase_stats as (
     SELECT
@@ -24,15 +24,15 @@ CREATE OR REPLACE TEMP TABLE buyer_segments AS (
       max(date) AS last_purchase_date,
       coalesce(sum(gms_net),0) AS lifetime_gms,
       coalesce(count(DISTINCT date),0) AS lifetime_purchase_days, 
-      coalesce(count(DISTINCT receipt_id),0) AS lifetime_orders,
+      coalesce(sum(receipts),0) AS lifetime_orders,
       round(cast(round(coalesce(sum(CASE
-          WHEN date between date_sub(as_of_date, interval 365 DAY) and as_of_date THEN gms_net
+          WHEN date between date_sub(as_of_date, interval 365 DAY) and as_of_date - 1 THEN gms_net
       END), CAST(0 as NUMERIC)),20) as numeric),2) AS past_year_gms,
       count(DISTINCT CASE
-          WHEN date between date_sub(as_of_date, interval 365 DAY) and as_of_date THEN date
+          WHEN date between date_sub(as_of_date, interval 365 DAY) and as_of_date - 1 THEN date
       END) AS past_year_purchase_days,
-      count(DISTINCT CASE
-          WHEN date between date_sub(as_of_date, interval 365 DAY) and as_of_date THEN receipt_id
+      sum(CASE
+          WHEN date between date_sub(as_of_date, interval 365 DAY) and as_of_date - 1 THEN receipts
       END) AS past_year_orders
     from `etsy-data-warehouse-prod.user_mart.mapped_user_profile` a
     cross join set_date ex
@@ -40,8 +40,8 @@ CREATE OR REPLACE TEMP TABLE buyer_segments AS (
       on a.mapped_user_id = b.mapped_user_id
     join `etsy-data-warehouse-prod.user_mart.user_first_visits` c
       on b.user_id = c.user_id
-    left join  `etsy-data-warehouse-prod.transaction_mart.transactions_gms_by_trans` e
-      on a.mapped_user_id = e.mapped_user_id and e.date <= ex.as_of_date and market <> 'ipp'
+    left join daily_gms e
+      on a.mapped_user_id = e.mapped_user_id and e.date < ex.as_of_date
     GROUP BY 1,2
     having (ex.as_of_date >= min(date(timestamp_seconds(a.join_date))) or ex.as_of_date >= min(date(c.start_datetime)))
   )
@@ -71,12 +71,7 @@ create or replace temp table exposed_to_ad as (
       -- date('2020-12-31') as as_of_date, 
       -- end_date as as_of_date, 
       as_of_date
-    FROM UNNEST(ARRAY<DATE>[
-      DATE('2023-12-31'), 
-      DATE('2022-12-31'), 
-      DATE('2021-12-31'),
-      DATE('2020-12-31'),
-      DATE('2019-12-31')]) AS as_of_date
+    FROM UNNEST( GENERATE_DATE_ARRAY('2020-01-01', DATE_TRUNC(CURRENT_DATE, MONTH), INTERVAL 1 MONTH ) ) AS as_of_date
   )
   select distinct
     a.mapped_user_id, 
@@ -97,7 +92,7 @@ create or replace temp table exposed_to_ad as (
   join `etsy-data-warehouse-prod.user_mart.user_first_visits` c
       on b.user_id = c.user_id
   left join etsy-data-warehouse-prod.buyatt_mart.visits v
-      on b.user_id = v.user_id and v._date >= '2000-01-01' and date(v.start_datetime) <= ex.as_of_date 
+      on b.user_id = v.user_id and v._date >= '2000-01-01' and date(v.start_datetime) <= last_day(ex.as_of_date, month)
   left join etsy-data-warehouse-prod.static.affiliates_publisher_by_tactic p
       on v.utm_content = p.publisher_id and p.tactic in ('Social Creator Co - CreatorIQ','Influencer Subnetwork')
   group by 1,2
@@ -143,6 +138,46 @@ create or replace temp table first_purchase_day_transactions as (
     dense_rank() over(partition by t.mapped_user_id order by t.date) = 1 -- first purchase day only
 );
 
+
+CREATE OR REPLACE TEMP TABLE daily_visits AS (
+  select date(v.start_datetime) as date, mapped_user_id, count(distinct visit_id) as visits, count(case when top_channel in ('us_paid','intl_paid') THEN visit_id end) as paid_visits 
+  from `etsy-data-warehouse-prod.buyatt_mart.visits` v
+  left join `etsy-data-warehouse-prod.user_mart.user_profile`  up on v.user_id = up.user_id
+  where v.user_id is not null and v.user_id <> 0
+    and date(v.start_datetime) >= DATE('2018-12-01')
+    and _date >=  DATE('2018-12-01')
+    and run_date >= UNIX_SECONDS(timestamp('2018-12-01'))
+  group by 1,2
+);
+
+create or replace temp table historical_visits_data as ( 
+  with set_date as (
+    SELECT
+      -- date('2020-12-31') as as_of_date, 
+      -- end_date as as_of_date, 
+      as_of_date,
+    FROM UNNEST( GENERATE_DATE_ARRAY('2020-01-01', DATE_TRUNC(CURRENT_DATE, MONTH), INTERVAL 1 MONTH ) ) AS as_of_date)
+  select up.mapped_user_id, 
+      ex.as_of_date,
+
+      sum(CASE
+          WHEN date between date_sub(as_of_date, interval 365 DAY) and as_of_date - 1 THEN visits END) AS past_year_visits,
+
+      sum(CASE
+          WHEN date between date_sub(as_of_date, interval 365 DAY) and as_of_date - 1 then paid_visits END) AS past_year_paid_visits,
+
+      max(CASE
+          WHEN date_trunc(date, month) = as_of_date THEN 1 else 0 END) AS visited_this_month,
+
+      max(CASE
+          WHEN v.date < ex.as_of_date THEN date END) date_last_visited
+
+    from `etsy-data-warehouse-prod.user_mart.mapped_user_profile` up
+    cross join set_date ex
+    join daily_visits v on up.mapped_user_id = v.mapped_user_id and v.date <= last_day(ex.as_of_date, month)
+    group by 1,2);
+
+
 --some other stats like first visit channel and guest/registered 
 create or replace temp table some_other_stats as ( 
 select 
@@ -153,10 +188,10 @@ from
   `etsy-data-warehouse-prod.user_mart.mapped_user_profile`
 );
 
-select *
-from exposed_to_ad;
+--select *
+--from exposed_to_ad;
 
-create or replace temp table final as ( 
+create or replace table `etsy-data-warehouse-dev.tnormil.exposed_subnetwork_history_new` as ( 
   select 
     b.mapped_user_id,
     b.as_of_date,
@@ -167,12 +202,16 @@ create or replace temp table final as (
     b.lifetime_purchase_days,  
     b.lifetime_gms as ltv, 
     a.first_visit_date,
+    
     a.exposed_subnetwork_date as exposed_subnetwork_date,
     case when a.exposed_subnetwork_date is not null then 1 else 0 end as exposed_subnetwork,
+    
     a.exposed_ciq_date as exposed_ciq_date,
-    case when a.exposed_subnetwork_date is not null then 1 else 0 end as exposed_ciq,
-    case when a.exposed_subnetwork_date is not null or aa.exposed_subnetwork_date is not null then 1 else 0 end as exposed_subnetwork_ty_ny,
-    case when a.exposed_subnetwork_date is not null or aa.exposed_ciq is not null then 1 else 0 end as exposed_ciq_ty_ny,
+    case when a.exposed_ciq_date is not null then 1 else 0 end as exposed_ciq,
+
+    case when date_trunc(a.exposed_subnetwork_date, month) = b.as_of_date then 1 else 0 end as exposed_subnetwork_firsttime,
+    case when date_trunc(a.exposed_ciq_date, month) = b.as_of_date  then 1 else 0 end as exposed_ciq_firsttime,
+
     coalesce(bb.target_hhi, "Unknown") as target_hhi,
     coalesce(bb.target_gender, "Unknown") as target_gender,
     coalesce(bb.estimated_age, "Unknown") as estimated_age,
@@ -181,83 +220,34 @@ create or replace temp table final as (
     case when coalesce(bb.country, "Unknown")  in ("United States","United Kingdom","France","Canada","Germany","Unknown") then country else 'ROW' end as country, 
     ss.account_age, 
     ss.is_guest,
-    coalesce(sum(f.gms),0) as first_day_gms, 
-    coalesce(sum(v.first_visit_device),"Unknown") as first_visit_device
+    coalesce(v.first_visit_device,"Unknown") as first_visit_device,
+    coalesce(hv.past_year_visits,0) as past_year_visits,
+    coalesce(hv.past_year_paid_visits,0) as past_year_paid_visits,
+    hv.date_last_visited,
+    hv.visited_this_month, 
+    sum(coalesce(f.gms,0)) as first_day_gms,
+    max(case when a.exposed_subnetwork_date is not null or aa.exposed_subnetwork_date is not null then 1 else 0 end) as exposed_subnetwork_future,
+    max(case when a.exposed_subnetwork_date is not null or aa.exposed_ciq_date is not null then 1 else 0 end) as exposed_ciq_future, 
   from 
     buyer_segments b 
   left join 
-    exposed_to_ad a using(mapped_user_id,as_of_date)
+    exposed_to_ad a on b.mapped_user_id = a.mapped_user_id and b.as_of_date = a.as_of_date
    left join 
-    exposed_to_ad aa on b.mapped_user_id = aa.mapped_user_id and date_add(b.as_of_date, interval 1 year) = aa.as_of_date
+    exposed_to_ad aa on b.mapped_user_id = aa.mapped_user_id and date_add(b.as_of_date, interval 1 month) >= aa.as_of_date
   left join 
-    `etsy-data-warehouse-prod.rollups.buyer_basics` bb using(mapped_user_id)
+    `etsy-data-warehouse-prod.rollups.buyer_basics` bb on b.mapped_user_id = bb.mapped_user_id
   left join 
-    first_purchase_day_transactions f using(mapped_user_id)
+    first_purchase_day_transactions f on b.mapped_user_id = f.mapped_user_id
   left join 
-    first_visit v using (mapped_user_id)
+    first_visit v on b.mapped_user_id = v.mapped_user_id
   left join 
-    some_other_stats ss using(mapped_user_id)
-  where
-    b.past_year_gms > 0 -- made a least 1 purchase in year
+    some_other_stats ss on b.mapped_user_id = ss.mapped_user_id
+  left join 
+    historical_visits_data hv on b.mapped_user_id = hv.mapped_user_id and b.as_of_date = hv.as_of_date
+  where b.past_year_gms > 0 -- made a least 1 purchase in year
+    -- and visited_this_month > 0
     -- and b.as_of_date = '2021-12-31' -- update year here.
-  group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
+  group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28
 );
-
---now let's sample the table so we can run PSM in R
-create or replace table `etsy-data-warehouse-dev.tnormil.exposed_subnetwork` as ( 
-    select mapped_user_id,
-    as_of_date,
-    buyer_segment,
-    first_purchase_date,
-    --past_year_gms,
-    --past_year_purchase_days,
-    --lifetime_purchase_days,  
-    --lifetime_gms as ltv, 
-    target_hhi,
-    target_gender,
-    estimated_age,
-    first_order_category,
-    -- lifetime_top_category,
-    country, 
-    --ss.account_age, 
-    is_guest,
-    first_day_gms, 
-    first_visit_device,
-    first_visit_date,
-  from 
-    final
-  where
-     exposed_subnetwork_ty_ny <> 1
-);
-
---now let's sample the table so we can run PSM in R
-create or replace table `etsy-data-warehouse-dev.tnormil.exposed_subnetwork` as ( 
-    select mapped_user_id,
-    as_of_date,
-    buyer_segment,
-    first_purchase_date,
-    --past_year_gms,
-    --past_year_purchase_days,
-    --lifetime_purchase_days,  
-    --lifetime_gms as ltv, 
-    target_hhi,
-    target_gender,
-    estimated_age,
-    first_order_category,
-    -- lifetime_top_category,
-    country, 
-    --ss.account_age, 
-    is_guest,
-    first_day_gms, 
-    first_visit_device,
-    first_visit_date,
-  from 
-    final
-  where
-     exposed_ciq_ty_ny <> 1 and as_of_date = '2023-12-01'
-);
-
-#could this go haywire for users with a join_date towards the end of the year or something?
-#i wonder if i should look at users, 1 - 3 years join date, focused on all users that joined after the year x
 
 end
