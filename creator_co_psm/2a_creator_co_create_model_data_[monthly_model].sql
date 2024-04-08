@@ -1,3 +1,5 @@
+-- get model features from historical data
+
 create or replace table `etsy-data-warehouse-dev.tnormil.exposed_subnetwork_new` as (
     select a.mapped_user_id,
     a.as_of_date,
@@ -35,3 +37,27 @@ create or replace table `etsy-data-warehouse-dev.tnormil.exposed_subnetwork_new`
      `etsy-data-warehouse-dev.tnormil.exposed_subnetwork_history_new`  a
   where a.as_of_date >= '2021-01-01'
 );
+
+-- sample records in the control for model
+
+create or replace table `etsy-data-warehouse-dev.tnormil.exposed_subnetwork_model_data`  as
+(with counts as 
+(select as_of_date, count(*) as cnt
+from `etsy-data-warehouse-dev.tnormil.exposed_subnetwork_new` 
+where exposed_subnetwork = 0
+group by 1),
+base_w_rnk as
+(SELECT e.*,
+row_number() over (partition by as_of_date order by rand()) as rnk
+FROM  `etsy-data-warehouse-dev.tnormil.exposed_subnetwork_new` e
+join counts c using (as_of_date)
+where exposed_subnetwork = 0
+and date_trunc(e.as_of_date,year) = '2022-01-01'
+qualify rnk < cnt*.2)
+select * except (rnk)
+from base_w_rnk
+union all
+select *
+from `etsy-data-warehouse-dev.tnormil.exposed_subnetwork_new` 
+where exposed_subnetwork = 1
+and date_trunc(as_of_date,year) = '2022-01-01');
