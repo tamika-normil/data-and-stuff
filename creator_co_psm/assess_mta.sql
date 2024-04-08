@@ -208,3 +208,102 @@ count(distinct visit_id) as visits, count(distinct case when up.user_id is not n
   and _date >=  DATE('2020-12-01')
   and top_channel in ('us_paid','intl_paid')
 group by 1,2;
+
+-- (3) What is the avg + median # of days between visit and purchase ?
+
+begin
+
+CREATE OR REPLACE TEMPORARY TABLE receipt_data
+  AS SELECT
+      receipt_id,
+      mapped_user_id,
+      purchase_date,
+      purchase_day_number,
+      coalesce(days_since_last_purch, 0) AS days_since_last_purch,
+      CASE
+        WHEN buyer_type = 'new_buyer' THEN 'new_buyer'
+        WHEN purchase_day_number = 2
+         AND buyer_type <> 'reactivated_buyer' THEN '2x_buyer'
+        WHEN purchase_day_number = 3
+         AND buyer_type <> 'reactivated_buyer' THEN '3x_buyer'
+        WHEN purchase_day_number >= 4 and purchase_day_number<= 9
+         AND buyer_type <> 'reactivated_buyer' THEN '4_to_9x_buyer'
+        WHEN purchase_day_number >= 10
+         AND buyer_type <> 'reactivated_buyer' THEN '10plus_buyer'
+        WHEN buyer_type = 'reactivated_buyer' THEN 'reactivated_buyer'
+        ELSE 'other'
+      END AS buyer_type,
+      recency,
+      day_percent,
+      attr_rev AS ltv_revenue,
+      receipt_gms + (ltv_gms - day_gms) * day_percent AS ltv_gms,
+      receipt_gms AS gms
+    FROM
+      `etsy-data-warehouse-prod.buyatt_mart.buyatt_analytics_clv`
+    WHERE extract(YEAR from CAST(purchase_date as DATETIME)) >= 2018
+;
+
+-- identify if receipt a existing either within 4 months of the original visit or before the user is exposed to another visit from the same channel
+
+CREATE OR REPLACE TEMPORARY TABLE base_data as 
+with visits_base as 
+    ( select distinct v.start_datetime, case when p.publisher_id is not null then p.tactic else c.reporting_channel_group end as reporting_channel_group, top_channel,
+    visit_id, mapped_user_id
+    from `etsy-data-warehouse-prod.buyatt_mart.visits` v
+    left join etsy-data-warehouse-prod.buyatt_mart.channel_dimensions c using (top_channel, second_channel,third_channel, utm_medium, utm_campaign)
+    left join etsy-data-warehouse-prod.static.affiliates_publisher_by_tactic p
+    on v.utm_content = p.publisher_id and p.tactic in ('Social Creator Co - CreatorIQ','Influencer Subnetwork') and v.second_channel = 'affiliates'
+    left join etsy-data-warehouse-prod.hvoc.customers_by_browser hvoc on v.browser_id = hvoc.browser_id
+    left join etsy-data-warehouse-prod.user_mart.user_profile up on hvoc.user_id = up.user_id
+    where date(v.start_datetime) >= DATE('2020-12-01')
+    and _date >=  DATE('2020-12-01')
+    and top_channel in ('us_paid','intl_paid')),
+visits_base_adjust as 
+    (select vb.*, lag(start_datetime) over (partition by  mapped_user_id, reporting_channel_group order by start_datetime asc) as next_visit 
+    from visits_base vb),
+base as 
+    (select date(v.start_datetime) as date, reporting_channel_group,top_channel,
+    visit_id, creation_tsz as receipt_timestamp, receipt_id, row_number() over (partition by visit_id order by creation_tsz asc) as rnk
+    from visits_base_adjust v
+    left join etsy-data-warehouse-prod.transaction_mart.all_receipts ar on v.mapped_user_id = ar.mapped_user_id
+    and creation_tsz > start_datetime and date(creation_tsz) < least( date_add(date(start_datetime), interval 4 month), coalesce(date(next_visit), '2030-01-01') )
+    qualify rnk = 1 or rnk is null)
+select b.*, r.buyer_type, days_since_last_purch
+from base b
+left join receipt_data r using (receipt_id);
+
+-- monthly avg + median days to purchase
+
+with avgg as 
+(SELECT date_trunc(date,  month) as month, reporting_channel_group,count(visit_id) as visits, avg( date_diff(date(receipt_timestamp),date, day) ) as avg_days_to_purchase, 
+stddev( date_diff(date(receipt_timestamp),date, day) )  as std_days_to_purchase
+FROM base_data
+where rnk is not null
+group by 1,2), 
+mediann as 
+(SELECT distinct date_trunc(date,  month) as month, reporting_channel_group, PERCENTILE_CONT( date_diff(date(receipt_timestamp),date, day) , .5) over (partition by  date_trunc(date,  month), reporting_channel_group ) as median_days_to_purchase
+FROM base_data
+where rnk is not null)
+select a.*, m.median_days_to_purchase
+from avgg a
+left join mediann m using (month, reporting_channel_group)
+order by 2,1;
+
+-- yearly avg + median days to purchase
+
+with avgg as 
+(SELECT date_trunc(date, year) as year, reporting_channel_group,count(visit_id) as visits, avg( date_diff(date(receipt_timestamp),date, day) ) as avg_days_to_purchase, 
+stddev( date_diff(date(receipt_timestamp),date, day) )  as std_days_to_purchase, 
+FROM base_data
+where rnk is not null
+group by 1,2), 
+mediann as 
+(SELECT distinct date_trunc(date, year) as year, reporting_channel_group, PERCENTILE_CONT( date_diff(date(receipt_timestamp),date, day) , .5) over (partition by  date_trunc(date,  year), reporting_channel_group ) as median_days_to_purchase
+FROM base_data
+where rnk is not null)
+select a.*, m.median_days_to_purchase
+from avgg a
+left join mediann m using (year, reporting_channel_group)
+order by 2,1;
+
+end;
