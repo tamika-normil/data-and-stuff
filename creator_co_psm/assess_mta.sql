@@ -193,3 +193,18 @@ group by 1,2;
 
 
 end;
+
+-- (3) What is the signed in rate?
+
+select date_trunc( date(start_datetime), month) as date, case when p.publisher_id is not null then p.tactic else c.reporting_channel_group end as reporting_channel_group,
+count(distinct visit_id) as visits, count(distinct case when up.user_id is not null then visit_id end) as signed_in_visits 
+  from `etsy-data-warehouse-prod.buyatt_mart.visits` v
+  left join etsy-data-warehouse-prod.buyatt_mart.channel_dimensions c using (top_channel, second_channel,third_channel, utm_medium, utm_campaign)
+  left join etsy-data-warehouse-prod.static.affiliates_publisher_by_tactic p
+      on v.utm_content = p.publisher_id and p.tactic in ('Social Creator Co - CreatorIQ','Influencer Subnetwork') and v.second_channel = 'affiliates'
+  left join etsy-data-warehouse-prod.hvoc.customers_by_browser hvoc on v.browser_id = hvoc.browser_id
+  left join etsy-data-warehouse-prod.user_mart.user_profile up on hvoc.user_id = up.user_id
+  where date(v.start_datetime) >= DATE('2020-12-01')
+  and _date >=  DATE('2020-12-01')
+  and top_channel in ('us_paid','intl_paid')
+group by 1,2;
