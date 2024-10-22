@@ -1,5 +1,6 @@
 SELECT date(start_datetime) as date , 
- case 
+ 
+case 
     when top_channel in ('direct', 'dark', 'internal', 'seo') then 'Non-Paid'
     when top_channel like 'social_%' then 'Non-Paid Social'
     when top_channel like 'email%' then 'CRM'
@@ -16,9 +17,10 @@ SELECT date(start_datetime) as date ,
       end
     else 'Non-Paid'
   end as reporting_channel_group,
-  utm_content,
+  
+utm_content,
 
-  case when utm_content =  '946733' then REGEXP_replace( utm_custom2 , r'(_p|_p_tiktok|_p_facebook|_tiktok|_meta)$','') else '0' end as subnetwork_id, 
+case when utm_content =  '946733' then REGEXP_replace( utm_custom2 , r'(_p|_p_tiktok|_p_facebook|_tiktok|_meta)$','') else '0' end as subnetwork_id, 
 
 count(visit_id) as visits, sum( engaged_visit_5mins ) as engaged_visit_5mins 
 FROM `etsy-data-warehouse-prod.visit_mart.visits` t
@@ -34,4 +36,4 @@ left join (select distinct affiliate_key from `etsy-data-warehouse-prod.etsy_sha
 where _date >= "2023-01-01"
 and run_date >= unix_seconds(timestamp('2023-01-01'))
 and not ( platform in ("desktop","mobile_web") and bounced = 1 and is_screenless = 1 )
-group by 1,2,3;
+group by 1,2,3,4;
