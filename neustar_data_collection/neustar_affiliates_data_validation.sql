@@ -1,7 +1,7 @@
 -- latest data validation https://docs.google.com/spreadsheets/d/1Ll06vfLMyOMt-gU3mJU6jb7z0ugE8juhJU1UYs6GTgA/edit#gid=1779331903
 
 select *
-from  `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates`
+from  `etsy-data-warehouse-prod.rollups.neustar_etl_affiliates`
 where date <= '2023-12-13' ;
 
 create temp table awin_costs as 
@@ -50,8 +50,8 @@ create temp table performance_marketing_daily_tracker as
 */
 
 with neustar as 
-(SELECT date, sum(cost) as cost, sum(visits) as visits, sum(impressions) as impressions
-FROM `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates` 
+(SELECT date, sum(cost) as cost, sum(visits) as visits, sum(impressions) as impressions, sum(visits_msm) as visits_msm
+FROM `etsy-data-warehouse-prod.rollups.neustar_etl_affiliates` 
 #performance_marketing_daily_tracker
 where date >= date_sub(current_date(), interval 3 quarter)
 #and country in ('US','DE','CA','FR','GB')
@@ -75,8 +75,8 @@ left join  awin_costs_agg a using (date);
 
 -- market level check 
 with neustar as 
-(SELECT date, country, sum(cost) as cost, sum(visits) as visits, sum(impressions) as impressions 
-FROM `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates` 
+(SELECT date, country, sum(cost) as cost, sum(visits) as visits, sum(impressions) as impressions, sum(visits_msm) as visits_msm
+FROM `etsy-data-warehouse-prod.rollups.neustar_etl_affiliates` 
 #performance_marketing_daily_tracker
 where date >= date_sub(current_date(), interval 3 quarter)
 #and country in ('US','DE','CA','FR','GB')
@@ -112,4 +112,4 @@ with base as (SELECT date(post_date) as post_date,
   sum(Impressions) as Impressions
   FROM etsy-data-warehouse-prod.static.historical_ciq_engagement
   group by 1,2)
-  select post_date, sum(impressions) as imp from base where post_date >= '2023-01-12' and country in ('US','DE','CA','FR','GB') group by 1 order by 1 asc;
+  select post_date, sum(impressions) as imp from base  where country in ('US','DE','CA','FR','GB') group by 1 order by 1 asc;
