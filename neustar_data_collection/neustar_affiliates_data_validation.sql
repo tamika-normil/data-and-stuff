@@ -1,4 +1,4 @@
--- latest data validation https://docs.google.com/spreadsheets/d/1Ll06vfLMyOMt-gU3mJU6jb7z0ugE8juhJU1UYs6GTgA/edit#gid=1779331903
+-- latest data validation https://docs.google.com/spreadsheets/d/1G2yVV7b5FXLimm7Z9Gg737tY8f7BFXyc_81bZVZwkMk/edit?gid=817218019#gid=817218019
 
 select *
 from  `etsy-data-warehouse-dev.rollups.neustar_etl_affiliates`
