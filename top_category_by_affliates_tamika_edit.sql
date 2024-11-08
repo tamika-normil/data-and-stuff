@@ -626,6 +626,36 @@ UNION all
 )
 ;
 
+CREATE TEMPORARY TABLE purch_cat_aff_weekly as (
+select date_trunc( date , week(monday)) as date,
+publisher_id,
+subnetwork_id,
+
+    purchase_category_main,
+    purchase_category_second,
+    purchase_category_third,
+
+    reporting_channel_group,
+
+	sum(attr_gms) as attr_gms,
+	sum(attr_receipts) as attr_receipts,
+
+	sum(attr_gms_adj) as attr_gms_adj,
+	sum(attr_receipts_adj) as attr_receipts_adj,
+
+	sum(attr_gms_adj_mult) as attr_gms_adj_mult,
+	sum(attr_receipts_adj_mult) as attr_receipts_adj_mult,
+
+	sum(attr_gms_adj_mult_fin) as attr_gms_adj_mult_fin,
+	sum(attr_receipts_adj_mult_fin) as attr_receipts_adj_mult_fin,
+
+	from purch_cat_aff
+	group by all
+
+)
+;
+
+
 CREATE TEMPORARY TABLE cc as 
     (with cc_direct_base as 
 	    (select '946733' as publisher_id, cast(PublisherId as string) as subnetwork_id, CASE
@@ -672,10 +702,10 @@ CREATE TEMPORARY TABLE cc as
 	select ab.publisher_id, '0' as subnetwork_id, publisher, ab.date as date_joined, min(case when visits > 0 then a.date end) as first_click_date, max(case when visits > 0 then a.date end) as last_click_date
     from aff_base ab 
     left join aff_perf a on ab.publisher_id = a.publisher_id
-    group by 1,2,3,4,5  
+    group by 1,2,3,4
  ;
 
-create or replace table `etsy-data-warehouse-prod.rollups.top_category_by_affliates` 
+create or replace table `etsy-data-warehouse-dev.tnormil.top_category_by_affliates` 
 	as (
 	select 
 	p.date,
@@ -706,7 +736,7 @@ create or replace table `etsy-data-warehouse-prod.rollups.top_category_by_afflia
 
 	sum(attr_gms_adj_mult_fin) as attr_gms_adj_mult_fin,
 	sum(attr_receipts_adj_mult_fin) as attr_receipts_adj_mult_fin,
-from purch_cat_aff p
+from purch_cat_aff_weekly p
 join (select distinct publisher_id, subnetwork_id, date_joined as date_joined, FlagshipSocialNetwork, Category,publishername, country from cc 
 	union all
     select distinct publisher_id, subnetwork_id, date_joined as date_joined, string(null), string(null), publisher, string(null) from aff
