@@ -19,15 +19,12 @@ SET (start_date, end_date) = (
 
 */
 
-
-/*
+begin
 
 create temp table xp_units as (
   with
 
-*/
-
-/*
+  /*
 
   -- Get experiment's bucketed units segments
   units_segments AS (
@@ -45,14 +42,11 @@ create temp table xp_units as (
     GROUP BY
       1, 2
   ),
-
 */
-
-/*
 
 get_past_experiments as 
       ( select Catapult_URL as report_link, SUBSTR(Catapult_URL, STRPOS(Catapult_URL, 'catapult/') + length('catapult/'), length(Catapult_URL)) as launch_id
-        from etsy-data-warehouse-dev.tnormil.lex_past_experiements),
+        from etsy-data-warehouse-dev.tnormil.lex_past_experiments),
     get_current_experiments as 
       ( select Catapult_or_Looker as report_link, SUBSTR(Catapult_or_Looker, STRPOS(Catapult_or_Looker, 'catapult/') + length('catapult/'), length(Catapult_or_Looker)) as launch_id
         from etsy-data-warehouse-dev.tnormil.lex_experiments_2025),
@@ -165,11 +159,7 @@ create temp table
       1,2
   );
 
-*/
-
-begin
-
-create temp table prod_catapult_stats as 
+create or replace table `etsy-data-warehouse-dev.tnormil.lex_prod_catapult_stat` as 
 -- Key Health Metrics (Winsorized ACBV and AOV)
 SELECT
   -- xp.buyer_segment,
@@ -197,11 +187,11 @@ SELECT
   sum(e.offsite_ads_revenue_sum) as offsite_ads_revenue_sum,
   sum(e.visits) as visits
 FROM
-  etsy-bigquery-adhoc-prod._script72e030598bca529ce142953ecf502d1acecde14e.xp_units AS xp
+ xp_units AS xp
 /*LEFT JOIN
   xp_total_units_by_variant AS tu ON tu.variant_id = xp.variant_id*/ -- Uncomment when adding breakdowns
 LEFT JOIN
-  etsy-bigquery-adhoc-prod._script72e030598bca529ce142953ecf502d1acecde14e.xp_khm_agg_events_by_unit AS e USING (bucketing_id, experiment_id,variant_id)
+  xp_khm_agg_events_by_unit AS e USING (bucketing_id, experiment_id,variant_id)
 GROUP BY
   1,2,3,4 -- , 2, tu.total_browsers -- Uncomment when adding breakdowns
 ORDER BY
@@ -209,6 +199,8 @@ ORDER BY
 
 end
 
+-- validation against prod catapult data 
+  
 select a.experiment_id, 
 a.variant_id,
 a.start_date,
@@ -223,6 +215,9 @@ mean_osa_rev,
 mean_comm_rev,
 mean_total_rev,
 mean_total_rev_ex_ncp,
+mean_total_rev_cb,
+mean_total_rev_ex_ncp_cb,
+mean_aov_cb,
 std_prolist_rev,
 std_cvr_prolist_rev,
 std_ltv_rev,
@@ -230,9 +225,47 @@ std_osa_rev,
 std_comm_rev,
 std_total_rev,
 std_total_rev_ex_ncp,
+std_total_rev_cb,
+std_total_rev_ex_ncp_cb,
+std_aov_cb,
 safe_divide(a.visits, b.visits) - 1 as visits_diff,
 safe_divide(a.cvr, b.conversion_rate) - 1 as cvr_diff,
 safe_divide(a.mean_prolist_rev, b.prolist_total_spend_per_browser/100) - 1 as prolist_total_spend_per_browser_diff,
 safe_divide(a.mean_osa_rev*bucketing_id, b.offsite_ads_revenue_sum/100) - 1 as offsite_ads_revenue_sum_diff,
-from `etsy-data-warehouse-dev.tnormil.lex_dev_catapult_stat` a
+from etsy-data-warehouse-dev.tnormil.lex_dev_catapult_stat_0224 a
 left join `etsy-data-warehouse-dev.tnormil.lex_prod_catapult_stat` b using (experiment_id, variant_id)
+
+-- validation against prod marketing data 
+
+with prod as 
+    (select config_flag_param as experiment_id, variant_id, sum(last_click_all*attr_rev) as attr_rev
+    from `etsy-data-warehouse-dev.tnormil.lex_visit_level_exp` a
+    left join etsy-data-warehouse-prod.weblog.visits v on 
+    a.bucketing_id = v.browser_id 
+    and TIMESTAMP_TRUNC(a.bucketing_ts, SECOND) <= v.end_datetime
+    and v._date BETWEEN start_date AND end_date
+    and v._date >= '2024-01-01'
+    left join etsy-data-warehouse-prod.buyatt_mart.attr_by_browser ab on v.visit_id = ab.o_visit_id
+    left join etsy-data-warehouse-prod.buyatt_mart.buyatt_analytics_clv clv on ab.receipt_id = clv.receipt_id
+    group by 1,2)
+select p.*, d.*
+from prod p
+left join `etsy-data-warehouse-dev.tnormil.lex_dev_catapult_stat_0224` d using (experiment_id, variant_id);
+
+with prolist as 
+    (SELECT visit_id, sum(cost) / 100 as spend, 
+    FROM `etsy-data-warehouse-prod.rollups.prolist_click_visits` pv
+    WHERE _date >= '2024-01-01'
+    group by 1),
+prod as 
+    (select config_flag_param as experiment_id, variant_id, sum(spend) as prod_spend
+    from `etsy-data-warehouse-dev.tnormil.lex_visit_level_exp` a
+    left join etsy-data-warehouse-prod.weblog.visits v on a.bucketing_id = v.browser_id 
+    and TIMESTAMP_TRUNC(a.bucketing_ts, SECOND) <= v.end_datetime
+    and v._date BETWEEN start_date AND end_date
+    and v._date >= '2024-01-01'
+    left join prolist p on v.visit_id = p.visit_id
+    group by 1,2)
+select p.*, d.*
+from prod p
+left join `etsy-data-warehouse-dev.tnormil.lex_dev_catapult_stat_0224` d using (experiment_id, variant_id);
